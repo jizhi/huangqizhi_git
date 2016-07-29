@@ -44,8 +44,7 @@ for i in xrange(len(status)) :
 	
 
 os.system('git status')
-print '-------------------------------------------------------'
-print
+print '-------------------------------------------------------\n'
 print 'Do you really want to add and commit all of these?'
 print 'Press Y to yes, others to no.'
 a = raw_input()
