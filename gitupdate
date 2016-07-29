@@ -8,7 +8,7 @@ import time
 if (len(sys.argv) > 1) : 
 	if (sys.argv[1] == 'init') : 
 		print 'git config --global user.name : Input your git name'
-		username = raw_input()
+		username = raw_input()  # jizhi
 		print 'git config --global user.email : Input your git e-mail'
 		useremail = raw_input()
 		if ('' in [username, useremail]) : raise Exception('user.name="'+username+'", user.email='+useremail)
