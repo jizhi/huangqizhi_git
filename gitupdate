@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# jizhi on 20160729
 import os
 import sys
 import time
@@ -14,6 +15,15 @@ if (len(sys.argv) > 1) :
 		os.system('git init')
 		os.system('git config --global user.name "'+username+'"')
 		os.system('git config --global user.email '+useremail)
+
+
+def Backup() : 
+	bktime=time.strftime('%Y.%m.%d.%p.%I.%M.%S', time.localtime())
+	pwd = os.popen('pwd').readlines()[0][:-1].split('/')[-1]
+	os.system('rm -r ~/.'+pwd+'*')
+	pwd = '~/.'+pwd+'_'+bktime+'/'
+	os.system('mkdir '+pwd)
+	os.system('cp -r * '+pwd)
 
 
 def ShellCmd( cmd ) : 
@@ -44,6 +54,7 @@ if (a.lower() in ['y', 'yes']) :
 	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
 	os.system('git commit -m "'+mdtime+'"')
 	os.system('git push -u origin master')
+	Backup()
 else : print 'Cancel'
 
 
