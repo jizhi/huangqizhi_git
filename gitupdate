@@ -4,6 +4,17 @@ import sys
 import time
 
 
+def Init() : 
+	print 'git config --global user.name : Input your git name'
+	username = raw_input()
+	print 'git config --global user.email : Input your git e-mail'
+	useremail = raw_input()
+	if ('' in [username, useremail]) : raise Exception('user.name="'+username+'", user.email='+useremail)
+	os.system('git init')
+	os.system('git config --global user.name "'+username+'"')
+	os.system('git config --global user.email '+useremail)
+
+
 def ShellCmd( cmd ) : 
 	strlist = os.popen(cmd).readlines()
 	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
@@ -11,11 +22,11 @@ def ShellCmd( cmd ) :
 
 
 # deleted
-status = ShellCmd('git status')
 delete = []
-for i in xrange(len(status)) : 
+status = os.popen('git status').readlines()
+for i in xrange(len(status)) :
 	if (status[i][1:9] == 'deleted:') : 
-		delete = status[i][9:].split(' ')[-1]
+		delete = status[i][9:].split(' ')[-1][:-1]
 		os.system('git rm '+delete)
 	
 
@@ -24,8 +35,8 @@ print '-------------------------------------------------------'
 print
 print 'Do you really want to add and commit all of these?'
 print 'Press Y to yes, others to no.'
-
 a = raw_input()
+
 
 if (a.lower() in ['y', 'yes']) : 
 	os.system('git add .')
