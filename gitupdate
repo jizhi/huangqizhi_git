@@ -22,6 +22,7 @@ def Backup() :
 	pwd = os.popen('pwd').readlines()[0][:-1].split('/')[-1]
 	os.system('rm -r ~/.'+pwd+'*')
 	pwd = '~/.'+pwd+'_'+bktime+'/'
+	print 'Backup to '+pwd
 	os.system('mkdir '+pwd)
 	os.system('cp -r * '+pwd)
 	os.system('cp ~/jizhi.py .')
