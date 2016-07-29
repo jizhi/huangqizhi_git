@@ -24,6 +24,7 @@ def Backup() :
 	pwd = '~/.'+pwd+'_'+bktime+'/'
 	os.system('mkdir '+pwd)
 	os.system('cp -r * '+pwd)
+	os.system('cp ~/jizhi.py .')
 
 
 def ShellCmd( cmd ) : 
