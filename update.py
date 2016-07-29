@@ -1,24 +1,23 @@
 #! /usr/bin/env python
 import os
 import sys
+import time
 
 
-def ShellCmd( cmd ) : 
-	a = os.popen(cmd).readlines()
-	for i in xrange(len(a)) : a[i] = a[i][:-1]
-	return a
+os.system('git status')
+print '--------------------------------------------------'
+print
+print 'Do you really want to add and commit all of these?'
+print 'Press Y to yes, others to no.'
+
+a = raw_input()
+
+if (a.lower() in ['y', 'yes']) : 
+	os.system('git add .')
+	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
+	os.system('git commit -m "'+mdtime+'"')
+	os.system('git push -u origin master')
 
 
-#def Status() : 
-#	a = ShellCmd('git status')
-#	n1, n2 = None, len(a)-1
-#	for i in xrange(len(a)) : 
-#		if (a[i][:11] == '  (use "git') : n1 = i+2
-#	a = a[n1:n2]
-#	for i in xrange(len(a)) : 
-#		ai = a[i][1:]
-#		if (ai[0] == '.') : continue
-		
-	
 
-print a
+
