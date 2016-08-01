@@ -2361,83 +2361,83 @@ def LogNormalValue( x, mean, std ) :
 #	return p
 #
 #
-#def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
-#	'''
-#	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
-#
-#	func: 
-#		(1) "polynomial":
-#			index is the highest order of x
-#			index=0: y = a + const*x
-#			index=1: y = a + b*x
-#			index=2: y = a + b*x + c*x^2
-#			return [a, b, c]
-#		(2) "gaussian":
-#			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
-#			return [mean, sigma]
-#		(3) "power-law":
-#			y = a*x^b
-#			return [a, b]
-#
-#	p0index:
-#		func=='polynomial': p0index=index
-#		func=='gaussian'  : p0index=[mean, stdev]
-#		func=='power-law' : p0index=[a,b]
-#
-#	spORmy:
-#		Use LeastsqSP() or LeastsqMatrix().
-#		(1) ='sp'
-#		(2) ='both'
-#		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
-#	'''
-#	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
-#	x, y = npfmt(x), npfmt(y)
-#	if (func.lower() == 'polynomial') : 
-#		if (type(p0index) not in [list, np.ndarray]) : 
-#			p0index = int(round(p0index))
-#			p0 = np.ones(p0index+1)
-#			p2 = LeastsqSP(x, y, func, p0)
-#			if (spORmy == 'both') : 
-#				p1 = LeastsqMatrix(x, y, func, p0index)
-#				p2 = np.append([p2], [p1], 0)
-#		else : 
-#			p2 = LeastsqSP(x, y, func, p0index)
-#			if (spORmy == 'both') : 
-#				index = len(p0index) - 1
-#				p1 = LeastsqMatrix(x, y, func, index)
-#				p2 = np.append([p2], [p1], 0)
-#		return p2
-#	elif (func.lower() == 'power-law') : 
-#		if (x.max()>0 and x.min()>0) : 
-#			if (type(p0index) not in [list, np.ndarray]) : 
-#				if (y.max()>0 and y.min()>0) : p0index=[1,1]
-#				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-#				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-#		elif (x.max()>0 and x.min()<0) : 
-#			xy = np.append(x[:,None], y[:,None], 1)
-#			xy = xy[xy[:,0]>0]
-#			x, y = xy.T
-#			if (y.max()>0 and y.min()>0) : p0index=[1,1]
-#			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-#			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-#		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
-#		p = LeastsqSP(x, y, func, p0index)
-#		return p
-#	elif (func.lower() == 'gaussian') : 
-#		xy = np.append(x[:,None], y[:,None], 1)
-#		xy = xy[xy[:,1]>0]
-#		x, y = xy.T
-#		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
-#		stdev = RMS(x-mean)
-#		if (stdev == 0) : stdev = 1
-#		if (type(p0index) not in [list, np.ndarray]) : 
-#			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
-#		else : 
-#			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
-#		if (spORmy == 'both') : 
-#			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
-#			p2 = np.append([p2], [p1], 0)
-#		return p2
+def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
+	'''
+	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
+
+	func: 
+		(1) "polynomial":
+			index is the highest order of x
+			index=0: y = a + const*x
+			index=1: y = a + b*x
+			index=2: y = a + b*x + c*x^2
+			return [a, b, c]
+		(2) "gaussian":
+			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
+			return [mean, sigma]
+		(3) "power-law":
+			y = a*x^b
+			return [a, b]
+
+	p0index:
+		func=='polynomial': p0index=index
+		func=='gaussian'  : p0index=[mean, stdev]
+		func=='power-law' : p0index=[a,b]
+
+	spORmy:
+		Use LeastsqSP() or LeastsqMatrix().
+		(1) ='sp'
+		(2) ='both'
+		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
+	'''
+	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
+	x, y = npfmt(x), npfmt(y)
+	if (func.lower() == 'polynomial') : 
+		if (type(p0index) not in [list, np.ndarray]) : 
+			p0index = int(round(p0index))
+			p0 = np.ones(p0index+1)
+			p2 = LeastsqSP(x, y, func, p0)
+			if (spORmy == 'both') : 
+				p1 = LeastsqMatrix(x, y, func, p0index)
+				p2 = np.append([p2], [p1], 0)
+		else : 
+			p2 = LeastsqSP(x, y, func, p0index)
+			if (spORmy == 'both') : 
+				index = len(p0index) - 1
+				p1 = LeastsqMatrix(x, y, func, index)
+				p2 = np.append([p2], [p1], 0)
+		return p2
+	elif (func.lower() == 'power-law') : 
+		if (x.max()>0 and x.min()>0) : 
+			if (type(p0index) not in [list, np.ndarray]) : 
+				if (y.max()>0 and y.min()>0) : p0index=[1,1]
+				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+		elif (x.max()>0 and x.min()<0) : 
+			xy = np.append(x[:,None], y[:,None], 1)
+			xy = xy[xy[:,0]>0]
+			x, y = xy.T
+			if (y.max()>0 and y.min()>0) : p0index=[1,1]
+			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
+		p = LeastsqSP(x, y, func, p0index)
+		return p
+	elif (func.lower() == 'gaussian') : 
+		xy = np.append(x[:,None], y[:,None], 1)
+		xy = xy[xy[:,1]>0]
+		x, y = xy.T
+		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
+		stdev = RMS(x-mean)
+		if (stdev == 0) : stdev = 1
+		if (type(p0index) not in [list, np.ndarray]) : 
+			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
+		else : 
+			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
+		if (spORmy == 'both') : 
+			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
+			p2 = np.append([p2], [p1], 0)
+		return p2
 
 
 def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) : 
@@ -3312,6 +3312,133 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, applr=Fal
 		sa = ArrayAxis(sa, 0, axis, 'move')
 		return [array, sa]
 	else : return array
+
+
+
+
+
+def SmoothWeight( per, times, plv=False ) : 
+	if (per%2==0 and plv) : 
+		print 'Warning: SmoothWeight(), per must be odd, reset per='+str(per)+' to per='+str(per+1)
+		per +=1
+	a0 = np.ones(per)
+	#----- Method 1 -----
+#	for n in xrange(1, times+1) : 
+#		if (times == 1) : break
+#		if (n == 1) : continue
+#		a = np.zeros([per, 1+2*n])
+#		for j in xrange(len(a)) : 
+#			a[j,j:j+len(a0)] = a0
+#		a0 = a.sum(0)
+#	weight = a0 / (1.*per)**times
+	#----- Method 1 END -----
+	#----- Method 2 -----
+	for n in xrange(1, times+1) : 
+		if (times == 1) : break
+		if (n == 1) : continue
+		a = np.zeros([per, 1+2*n*(per/2)])
+		for j in xrange(len(a)) : 
+			a[j,j:j+len(a0)] = a0
+		a0 = a.sum(0) /per
+	weight = a0/per  #@ Remember this !!!
+	#----- Method 2 END -----
+	return weight
+
+
+def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False ) : 
+	'''
+	Smooth/Average/Mean array along one axis.
+	We can also use spsn.convolve() to do this, but spsn.convolve() will cost much more memory and time, so, the function written here is the best and fastest.
+
+	Weighted average, sigma will reduce to 1/sqrt{per**times}
+	Equivalent to average over per**times
+
+	axis:
+		array will be smoothed/averaged along which axis.
+
+	per:
+		How many bins/elements to average.
+
+	times:
+		How many times to smooth.
+		For random noise, times=4 is OK
+		Note that this parameter is just for reduceshape=False
+
+	sigma:
+		False, True, int, np.array
+		If False, don't return the error.
+		If True, calculate the error from input array.
+		If int or np.array, use this sigma to calculate the error of the result.
+
+	reduceshape:
+		False, return.shape = array.shape
+		True, return.shape < array.shape
+
+	# Also, we can use Convolve to do it:
+	#    w = array*0
+	#    w = w[len(array)/2-per/2:len(array)/2+per/2+1] = 1
+	#    return Convolve(array, w/w.sum())
+
+	Note that:
+		Wide of 2 windows: w1 < w2
+		a1  = Convolve(a,  w1)
+		a2  = Convolve(a,  w2)
+		a12 = Convolve(a1, w2)
+		=> a12 = Smooth(a2)
+		But the beam sizes of the result maps are similar (roughly the same), Beamsize(a12) >= Beamsize(a2).
+	'''
+	if (per%2 == 0) : per +=1
+	if (per<=1 or times<=0) : return array
+	array = np.array(array)
+	per, atype, shape = int(round(per)), array.dtype, array.shape
+	if (axis < 0) : axis = len(shape) + axis
+	if (axis >= len(shape)) : Raise(Exception, 'axis='+str(axis)+', array.shape='+str(shape)+', axis out of array.shape')
+	# Move axis to axis=0
+	array = ArrayAxis(array, axis, 0, 'move')
+	shape = array.shape
+	#--------------------------------------------------
+	if (not reduceshape) : 
+		weight = SmoothWeight( per, times )
+		lw = len(weight)
+		shapew = npfmt(shape)
+		shapew[0] = lw
+		shapew[1:] = 1
+		weight = weight.reshape(shapew)
+		#--------------------------------------------------
+		dnwa1 = None
+		if (len(array) < lw) : 
+			dnwa1 = (lw-len(array))/2
+			dnwa2 = lw-len(array) - dnwa1
+			if (dnwa1 > 0) : a1 = np.concatenate([array[:1]  for i in xrange(dnwa1)])
+			else : a1 = []
+			a2 = np.concatenate([array[-1:] for i in xrange(dnwa2)])
+			array = np.concatenate([a1, array, a2])
+			a1 = a2 = 0 #@
+		#--------------------------------------------------
+		b = array*0
+		for i in xrange(len(array)) : 
+			if (i < lw/2) : 
+				da = np.concatenate([array[:1] for j in xrange(lw/2-i)])
+				ai = np.concatenate([da, array[:lw/2+1+i]])
+			elif (i >= len(array)-lw/2) : 
+				dn = lw/2 - (len(array)-1 - i)
+				da = np.concatenate([array[-1:] for j in xrange(dn)])
+				ai = np.concatenate([array[i-lw/2:], da])
+			else : ai = array[i-lw/2:i+lw/2+1]
+			b[i] = (ai * weight).sum(0)
+		if (dnwa1 is not None) : b = b[dnwa1:-dnwa2]
+		ai = w = 0 #@
+	#--------------------------------------------------
+	else : 
+		if (times == 1) : Npix = len(array)/per
+		else : Npix = times
+		n = np.linspace(0, len(array), Npix+1).astype(int)
+		b = np.zeros((Npix-1,) + shape[1:])
+		for i in xrange(len(n)-1) : 
+			b[i] = array[n[i]:n[i+1]].mean(0)
+	#--------------------------------------------------
+	b = ArrayAxis(b, 0, axis, 'move')
+	return b
 
 
 ##################################################
