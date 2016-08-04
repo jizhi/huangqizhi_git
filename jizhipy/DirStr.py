@@ -3,7 +3,7 @@ from IsType import *
 
 
 
-def Dirstr( dirstr, expanduser=False ) : 
+def DirStr( dirstr, expanduser=False ) : 
 	'''
 	Convert '../paon4/paon4_data' to '../paon4/paon4_data/'
 	
