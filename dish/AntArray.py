@@ -1,13 +1,13 @@
-from jizhi import *
+from npfmt import *
+from Raise import *
+from ShellCmd import *
+import h5py
+from IsType import *
 ##################################################
-'''
-AntArray is a class to read .hdf5
-The following pipeline is basing on this class
-'''
 
 
 class _AntArrayBlorder( object ) : 
-	dtype = 'class:'+sys._getframe().f_code.co_name
+
 
 	def _Blorder( self, blorder ) : 
 		self.blorder = blorder[:]
@@ -57,7 +57,7 @@ class _AntArrayBlorder( object ) :
 		if (len(arg) == 1) : bl = arg[0]
 		else : bl = arg[:2]
 		bl = np.sort(bl)
-		dblorder=abs(self.blorder-np.array(bl)[None,:]).sum(1)
+		dblorder = abs(self.blorder-np.array(bl)[None,:]).sum(1)
 		order = np.arange(dblorder.size)[dblorder==0]
 		if (order.size == 0) : Raise(Exception, 'NOT exisit baseline='+str(bl[0])+'-'+str(bl[1]))
 		return order[0]
@@ -72,7 +72,6 @@ class _AntArrayBlorder( object ) :
 
 
 class _AntArrayHdf5( object ) : 
-	dtype = 'class:'+sys._getframe().f_code.co_name
 
 
 	def _Hdf5List( self, hdf5dir ) : 
@@ -91,7 +90,8 @@ class _AntArrayHdf5( object ) :
 		''' whichhdf5: can be absolute path of current hdf5(str), or the order of this hdf5(int)
 		self.hdf5path: current hdf5 
 		self.nhdf5: order of current hdf5 in hdf5list '''
-		if (Type(whichhdf5) == str) : 
+		istype = IsType()
+		if (istype.isstr(whichhdf5)) : 
 			self.hdf5path = whichhdf5
 			self.nhdf5 = self.hdf5list.index(hdf5path)
 		else : 
@@ -167,12 +167,13 @@ class AntArray( object ) :
 			or index/number of this file: which = 3
 			or 'transitsource' which is not the Sun
 		'''
-		if (Type(whichhdf5) == str) : 
+		istype = IsType()
+		if (istype.isstr(whichhdf5)) : 
 			if (whichhdf5.lower() == 'transitsource') : which = 0
 			else : which = whichhdf5
 		else : which = whichhdf5
 		self._WhichHdf5(which)
-		if (Type(whichhdf5) == str) : 
+		if (istype.isstr(whichhdf5)) : 
 			if (whichhdf5.lower() == 'transitsource') : 
 				self._WhichHdf5(self.Hdf5.nhdf5transit[-1])
 
@@ -287,8 +288,48 @@ class AntArray( object ) :
 			self.visorder = self.Blorder.cross1
 
 
-##################################################
-##################################################
-##################################################
+
+	#---------- def _Ant() ----------
+	def LonLat( self, lon, lat ) : 
+		''' longitude and latitude of the antenna, in degree '''
+		self.Ant.lonlat = np.array([lon, lat]).flatten()
+
+	def Diameter( self, diameter ) : 
+		''' Diameter of the single antenna, in meter '''
+		self.Ant.dishdiam = np.array(diameter).take(0)
+
+	def Inttime( self, inttime ) : 
+		''' Integration time, in second '''
+		self.Ant.inttime = np.array(inttime).take(0)
+
+	def Freq( self, freq ) : 
+		''' freqlist, in MHz. 1D '''
+		self.Ant.freq = npfmt(freq).flatten()
+
+	def Noisesourcepos( self, x, y, z ) : 
+		''' Coordinate of the noise source on the hill, meter '''
+		self.Ant.noisesourcepos = np.array([x, y, z]).flatten()
+	#---------- def _Ant()  END ----------
 
 
+	#---------- def _Blorder() ----------
+	def BlorderSet( self, blorder ) : 
+		self.Blorder._Blorder(blorder)
+		self.Blorder._AutoCross()
+		keys = self.Blorder.__dict__.keys()
+		if ('blorder' in keys and 'feedpos' in keys) : 
+			self.MaskChannel()
+			self.SelectVisType('all')
+
+	def FeedposSet( self, feedpos ) : 
+		''' Feeds position, in meter
+		Order: feed-1,  feed-2,  feed-3,  feed-4, ...,  feed-n
+		       Ant-1-H, Ant-1-V, Ant-2-H, Ant-2-V, ..., Ant-n/2-V
+		'''
+		self.Blorder._Feedpos(feedpos)
+		self.Blorder._Baseline()
+		keys = self.Blorder.__dict__.keys()
+		if ('blorder' in keys and 'feedpos' in keys) : 
+			self.MaskChannel()
+			self.SelectVisType('all')
+	#---------- def _Blorder()  END ----------
