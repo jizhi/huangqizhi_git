@@ -1,9 +1,18 @@
+import matplotlib as mpl
+mpl.rcParams['text.usetex'] = True  # Use latex, may encounter error on node1
+import matplotlib.pyplot as plt
+from matplotlib.cm import get_cmap
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter 
 import multiprocessing
 import traceback
 import warnings
 import gc
 from copy import deepcopy as dcopy
 from types import *
+import os
+import sys
+import time
+import numpy as np
 import scipy.signal as spsn
 import scipy.linalg as spla
 from scipy.linalg import det
@@ -25,44 +34,87 @@ import aipy
 from optparse import OptionParser 
 import h5py
 
-# Label of colorbar:
-# cbar = plt.colorbar()
-# cbar.set_label('K')
 
-# a.size=1e8, 64bit, folat/int/complex, 800MB
-# a.size=1e8, 32bit, folat/int, 400MB
-# a.size=1e8, 16bit, int, 200MB
-# a.size=1e8, 8bit , bool, 100MB
+'''
+class test : 
+	dtype = 'class:'+sys._getframe().f_code.co_name
 
-# class test( object ) : 
-# 	dtype = 'class:'+sys._getframe().f_code.co_name
+	def __init__( self, *arg, **kwargs ) : 
+		if (len(arg)+len(kwargs) == 0) : return
+		argdict = []
+		argdict, which = ArgInit(argdict, arg, kwargs)
+		if (which == 0) : 
 
-# When use plt.pcolormesh(), plt.figure(figsize=(a,b)), if want to plot a square (NxN) and plt.colorbar(), must a=1.28*b
+	def Copy( self ) : return dcopy(self)
 
-# Plot 3D: 
-# 	ax = plt.figure(figsize=()).gca(projection='3d')
-# 	ax.plot(x, y, z, 'r-', lw=2, label='')
-# 	ax.set_xlim3d(0,1)
-# 	ax.set_ylim3d(0,2)
-# 	ax.set_zlim3d(0,3)
-# 	ax.legend()
-# 	ax.view_init(30, -60)  # ax.view_init(0,-0.1)
-# 	plt.show()
+	def Clear( self ) : self.__dict__.clear()
 
-# Scientific notation:
-# plt.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
+	def Show( self ) : 
+		cdict = self.__dict__
+		keys, n = cdict.keys(), 0
+		for i in range(len(keys)) : 
+			if (len(keys[i]) > n) : n = len(keys[i])
+		n = '%'+str(n+1)+'s'
+		print '.show() = {'
+		for i in range(len(keys)) : 
+			print (n % keys[i]) + ':', cdict.values()[i]
+		print '}'
 
-# matplotlib, plot marker without line:
-# plt.plot(x, y, ls='', marker='o')
+	def ShowFunc( self ) : 
+		classdict = self.__class__.__dict__
+		classname = classdict.keys()
+		n = 0
+		for i in range(len(classdict)) : 
+			if (classname[i-n][0] == '_') : 
+				classname.pop(i-n)
+				n +=1
+			elif (type(classdict[classname[i-n]]) != FunctionType) : 
+				classname.pop(i-n)
+				n +=1
+			else : classname[i-n] = classname[i-n]+'()'
+		print self.dtype+'.ShowFunc():'
+		for i in range(len(classname)) : print '   '+classname[i]
+		return classname
+'''
 
-# fig = plt.gcf()
-# ax  = plt.gca()
+"""
+    When use plt.pcolormesh(), plt.figure(figsize=(a,b)), if want to plot a square (NxN) and plt.colorbar(), must a=1.28*b
+"""
 
-# hp.graticule(interval_latitude, interval_longitude, verbose=False, color='w'), set verbose=False to avoid "ValueError: Unknown format code 'd' for object of type 'float'"
+'''
+Plot 3D: 
+	ax = plt.figure(figsize=()).gca(projection='3d')
+	ax.plot(x, y, z, 'r-', lw=2, label='')
+	ax.set_xlim3d(0,1)
+	ax.set_ylim3d(0,2)
+	ax.set_zlim3d(0,3)
+	ax.legend()
+	ax.view_init(30, -60)  # ax.view_init(0,-0.1)
+	plt.show()
+'''
 
-# hp.mollview(map, coord='gc'), coord='gc' means convert from galactic to equatorial
+"""
+Scientific notation:
+plt.ticklabel_format(axis='y',style='sci',scilimits=(0,0))
+"""
 
-# a = hp.mollview(np.log10(h), return_projected_map=True, xsize=800, coord='gc', rot=(0,90,0))
+'''
+matplotlib, plot marker without line:
+plt.plot(x, y, ls='', marker='o')
+'''
+
+"""
+fig = plt.gcf()
+ax  = plt.gca()
+"""
+
+'''
+* hp.graticule(interval_latitude, interval_longitude, verbose=False, color='w'), set verbose=False to avoid "ValueError: Unknown format code 'd' for object of type 'float'"
+
+* hp.mollview(map, coord='gc'), coord='gc' means convert from galactic to equatorial
+
+* a = hp.mollview(np.log10(h), return_projected_map=True, xsize=800, coord='gc', rot=(0,90,0))
+'''
 
 
 ##################################################
@@ -138,15 +190,91 @@ import h5py
     So, for nside=1024 GSM map, FWHMgsm=FWHMfit/1.0012, and for nside=512, FWHMgsm = FWHMfit/1.0024
 """
 
+##################################################
+##################################################
+##################################################
+
+
+def SysFrame( downstack=None, upstack=None ) : 
+	'''
+	downstack: begining of the stack. Default=0
+	upstack: the uppest stack you want. Default to the uppest
+	'''
+	# How deep of the stack
+	for d in range(1000000) : 
+		try : sys._getframe(d)
+		except : break
+	stackmax, stackmin = d-1, 0
+	if (downstack is None) : downstack = stackmin
+	elif (downstack < stackmin) : downstack = stackmin
+	if (upstack is None) : upstack = stackmax
+	elif (upstack > stackmax) : upstack = stackmax
+	#--------------------------------------------------
+	outstr = ''
+	for i in range(upstack, downstack, -1) : 
+		f = sys._getframe(i)
+		filename = f.f_code.co_filename
+		lineno   = f.f_lineno
+		name     = f.f_code.co_name
+		outstr += '  File "'+filename+'", line '+str(lineno)+', in '+name+' =>\n'
+	outstr = outstr[:-4]
+	return outstr
+
+
+def Raise( which=None, message='' ) : 
+	'''
+	Usage:
+		(1) Warning, but run continue
+			try : raise Warning()
+			except : Raise( message )
+		(2) Exception, stop at once
+			try : raise Exception()
+			except : Raise( message )
+	'''
+	if (which is None) : which = 'Exception'
+	if (which in [Warning,'Warning','warning','WARNING']) : 
+		which = 'Warning'
+		print '-------------------- Warning --------------------'
+	else : 
+		which = 'Exception'
+		print '------------------- Exception -------------------'
+	print SysFrame(1)
+	print which+': '+str(message)
+	print '-------------------------------------------------'
+	if (which == 'Exception') : exit()
+
 
 ##################################################
 ##################################################
 ##################################################
 
 
-##################################################
-##################################################
-##################################################
+class Constant( object ) : 
+
+	def __init__( self ) : 
+		self.constant = {'Boltzmann':1.380648813e-23, 'Planck':6.6260695729e-34, 'c':2.99792458e8, '21cmfreq':1420.40575177e6, '21cmwavelength':0.2110611405413}
+
+	def Value( self, which='' ) : 
+		if (Type(which) != str) : which = ''
+		name0 = self.constant.keys()
+		name = name0[:]
+		# Upper
+		for i in range(len(name0)) : 
+			name.append(name0[i].upper())
+		# lower
+		for i in range(len(name0)) : 
+			name.append(name0[i].lower())
+		# Get value
+		try : 
+			n = name.index(which) % len(name0)
+			value = self.constant[name0[n]]
+		except : 
+			Raise(Warning, 'Registered names='+str(name0)+'.\n which="'+which+'" is not registered. Return 1')
+			value = 1
+		return value
+
+	def __call__( self, which='' ) : return self.Value(which)
+	def __getitem__( self, which='' ) : return self.Value(which)
 
 
 ##################################################
@@ -154,21 +282,56 @@ import h5py
 ##################################################
 
 
+def CheckMemory() : 
+	'''
+	Return the total physical memory (MB) of the computer
+	1e8 float64 accounts for 800MB:
+		array.dtype = np.float64
+		array.size = 1e8
+		array accounts for 800MB memory
+	'''
+	uname = ShellCmd('uname')[0]
+	if (uname == 'Linux') : 
+		memory = ShellCmd('free -m')[1]
+	elif (uname == 'Darwin') : 
+		memory = ShellCmd('top -l 1 | head -n 10 | grep PhysMem')[0]
+	else : Raise(Exception, uname+' not in (Linux, Darwin)')
+	#--------------------------------------------------
+	for i in range(len(memory)) : 
+		if (memory[i] in '123456789') : 
+			n1 = i
+			break
+	for i in range(n1+1, len(memory)) : 
+		if (memory[i] not in '0123456789') : 
+			n2 = i
+			break
+	totmem = int(memory[n1:n2]) # MB
+	#--------------------------------------------------
+	if (uname == 'Darwin') : 
+		for i in range(len(memory)-1, 0, -1) : 
+			if (memory[i] in '0123456789') : 
+				n4 = i+1
+				break
+		for i in range(n4-1, 0, -1) : 
+			if (memory[i] not in '0123456789') : 
+				n3 = i+1
+				break
+		totmem += int(memory[n3:n4]) # MB
+	#--------------------------------------------------
+	return totmem
+
+
 ##################################################
 ##################################################
 ##################################################
 
 
-
-##################################################
-##################################################
-##################################################
+def Pause() : raw_input()
 
 
-
-##################################################
-##################################################
-##################################################
+def Purge() : 
+	try : os.system('purge')
+	except : pass
 
 
 ##################################################
@@ -176,10 +339,537 @@ import h5py
 ##################################################
 
 
+def StrFind( string, find ) : 
+	'''
+	find, string:
+		Both str. Where is (str)find	in the (str)string? Find the index range
+
+	find:
+		=Any str that will be found
+		='NumType', where is the number(int or float)?
+
+	For example:
+		StrFind('CygA665S1dec15', 'S') => [(7,8)]
+		It means string[7:8] == 'S'
+
+	return: list of tuple, even just one element
+	'''
+	#--------------------------------------------------
+	if (find != 'NumType') : 
+		nfind = []
+		if (type(find) != str) : find = str(find)
+		for i in range(len(string)-len(find)+1) : 
+			if (string[i:i+len(find)] == find) : 
+				nfind.append((i,i+len(find)))
+		return nfind
+	#--------------------------------------------------
+	else : 
+		strnum = ['' for i in range(len(string))]
+		nnum, n, nfind, strfind = strnum[:], 0, [], []
+		strNumType = ['0','1','2','3','4','5','6','7','8','9']
+		for i in range(len(string)) : 
+			if (string[i] in strNumType) : 
+				strnum[n] += string[i]
+				nnum[n] += str(i)+','
+			elif (string[i] == '.') : 
+				try : 
+					if ((string[i-1] in strNumType) and (string[i+1] in strNumType)) : 
+						strnum[n] += string[i]
+						nnum[n] += str(i)+','
+				except : pass
+			else : n +=1
+		for i in range(len(strnum)) : 
+			if (strnum[i] != '') : 
+				strfind.append(strnum[i])
+				nnumi = nnum[i].split(',')
+				nfind.append((int(nnumi[0]), int(nnumi[-2])+1)) 
+		return [nfind, strfind]
+
 
 ##################################################
 ##################################################
 ##################################################
+
+
+def StrListAdd( *arg ) : 
+	'''
+	arg = (str or list of str)
+	Combine arg to str or list of str, according to the type of arg (list or not)
+	tuple will convert to list
+
+	For example: 
+		StrListAdd('a', 'b') => 'ab'
+		StrListAdd('a', ['b']) => ['ab']
+		StrListAdd('a', ['b'], ['c', 'd']) => ['abc', 'abd']
+		StrListAdd('data/', ['CygA', 'CasA'], '_paon4.fits') => ['data/CygA_paon4.fits', 'data/CasA_paon4.fits']
+	'''
+	# Check arg
+	arg = list(arg)
+	narg = np.zeros([len(arg),], int)
+	islist = narg*0
+	for i in range(len(arg)) : 
+		if (Type(arg[i]) == str) : 
+			narg[i], islist[i] = 1, 0
+		else : 
+			narg[i], islist[i] = len(arg[i]), 1
+	nmax = narg.max()
+	narg = narg[(narg.min()<narg)*(narg<narg.max())]
+	if (narg.size > 0) : raise Exception('Element numbers in arg='+str(arg)+' are not suitable')
+	if (islist.max() == 1) : islist = True
+	else : islist = False
+	#----------
+	for i in range(len(arg)) : 
+		if (Type(arg[i]) == str) : arg[i] = [arg[i] for j in range(nmax)]
+		elif (len(arg[i]) == 1) : arg[i] = [arg[i][0] for j in range(nmax)]
+	restr = []
+	for j in range(nmax) : 
+		strij = ''
+		for i in range(len(arg)) : 
+			strij += arg[i][j]
+		restr.append(strij)
+	if (islist == False) : restr = restr[0]
+	return restr
+
+
+##################################################
+##################################################
+##################################################
+
+
+def PathExists( path ) : 
+	'''
+	path:
+		str or list of str
+
+	return:
+		return the path that exists
+	'''
+	islist, validpath = True, []
+	if (Type(path) == str) : path, islist = [path], False
+	for i in range(len(path)) : 
+		if (path[i] is None) : path[i] = ''
+		if (os.path.exists(path[i])) : validpath.append(path[i])
+	if (islist == False) : validpath = validpath[0] if (len(validpath)==1) else ''
+	return validpath
+
+
+##################################################
+##################################################
+##################################################
+
+
+def Type( a='*None*' ) : 
+	if (type(a) == str) : 
+		if (a == '*None*') : return ['NumType', list, tuple, str, NoneType, dict, bool, np.ndarray, 'AnyType']
+	try : typea = a.__class__
+	except : typea = type(a)
+	typestr = str(typea).split(' ')[-1].split('.')[-1].split('>')[0].split("'")
+	typestr = len(typestr)==3 and typestr[1] or typestr[0]
+	# NumType
+	if (typestr[:3] in ['int', 'flo', 'com']) : typea = 'NumType'
+	elif (typestr == 'ndarray') : 
+		if (a.shape == ()) : typea = 'NumType'
+	# np.string_, np.bool_
+	elif (typestr == 'string_') : typea = str
+	elif (typestr == 'bool_') : typea = bool
+	# mask
+	elif (typestr[:6] == 'Masked') : typea = type(a)
+	# class and object
+	elif (typestr not in ['list', 'tuple', 'str', 'string_', 'NoneType', 'dict', 'bool', 'bool_', 'function']) : 
+		try : typea = a.dtype
+		except : pass
+	return typea
+
+
+##################################################
+##################################################
+##################################################
+
+
+def npfmt( value, dtype=None ) : 
+	''' convert any value to numpy.array([]) format '''
+	if (type(value) == np.ma.core.MaskedConstant) : 
+		value = np.ma.asarray([0.])
+		value.mask = [True]
+	elif (type(value) == np.ma.core.MaskedArray) : pass
+	else : 
+		try : 
+			value = np.array(value, dtype)
+			if (value.shape == ()) : value = np.array([value])
+		except : value = np.array(value, np.object)
+	return value
+
+
+##################################################
+##################################################
+##################################################
+
+
+def ArrayAxis( array, axis1, axis2, act ) : 
+	'''
+	act:
+		'move' or 'exchange'
+		If (act == 'move')     : move     a[axis1] to   b[axis2]
+		If (act == 'exchange') : exchange a[axis1] with a[axis2]
+	'''
+	array = npfmt(array)
+	shapeo = array.shape
+	if (len(shapeo) <= 1) : return array
+	# Check axis
+	if (axis1 < 0) : axis1 = len(shapeo) + axis1
+	if (axis2 < 0) : axis2 = len(shapeo) + axis2
+	if (axis1>=len(shapeo) or axis2>=len(shapeo)) : Raise(Exception, 'axis1='+str(axis1)+', axis2='+str(axis2)+' out of array.shape='+str(shapeo)+'=>'+str(len(shapeo))+'D')
+	def ArrayAxis2First( array, axis1 ) : 
+		if (axis1 == 0) : return array
+		array_new = []
+		for i in xrange(shapeo[axis1]) : 
+			if (axis1 == 1) : 
+				array_new = array_new + [array[:,i]]
+			elif (axis1 == 2) : 
+				array_new = array_new + [array[:,:,i]]
+			elif (axis1 == 3) : 
+				array_new = array_new + [array[:,:,:,i]]
+			elif (axis1 == 4) : 
+				array_new = array_new + [array[:,:,:,:,i]]
+			elif (axis1 == 5) : 
+				array_new = array_new + [array[:,:,:,:,:,i]]
+			else : Raise(Exception, 'this function can just handel 6D array. For >= 7D array, you can modify this function by yourself.')
+		return npfmt(array_new)
+	#@#@#@#@#@#@
+	shapeo = list(shapeo)
+	s0 = list(np.arange(len(shapeo)))
+	act = act.lower()
+	if (act == 'move') : 
+		if (axis1 < axis2) : 
+			s01, s02, s03 = s0[:axis1], s0[axis1+1:axis2+1], s0[axis2+1:]
+			s1 = s01 + s02 + [s0[axis1]] + s03
+		elif (axis1 > axis2) : 
+			s01, s02, s03 = s0[:axis2], s0[axis2:axis1], s0[axis1+1:]
+			s1 = s01 + [s0[axis1]] + s02 + s03
+		else : return array
+	elif (act == 'exchange') : 
+		if (axis1 == axis2) : return array
+		s1 = s0[:]
+		s01, s02 = s0[axis1], s0[axis2]
+		s1[axis1], s1[axis2] = s02, s01
+	else : Raise(Exception, 'act='+act+' is not "move" nor "exchange"')
+	if (len(shapeo) == 1) : return array
+	elif (len(shapeo) == 2) : return array.T
+	for i in xrange(len(s0)-1, -1, -1) : 
+		while (s0[i] != s1[i]) : 
+			array = ArrayAxis2First(array, i)
+			s0 = [s0[i]] + s0[:i] + s0[i+1:]
+			shapeo = [shapeo[i]] + shapeo[:i] + shapeo[i+1:]
+	return array
+
+
+##################################################
+##################################################
+##################################################
+
+
+def Time( time1=None, time2=None ):
+	'''
+	Show the current time.
+	return [time_ephem, time_see, time_outname]
+	or return dtime
+
+	time1, time2:
+		If set both (ephem format: '2015/12/16 15:34:22'), return the amount of time
+		If set one, return Julian time
+		If both None, return current time in 3 format
+	'''
+	which, dt = -1, -123
+	if (time1 is not None and time2 is not None) : 
+		dt = abs(ephem.julian_date(time2)-ephem.julian_date(time1))
+	elif (time1 is not None) : 
+		if (Type(time1)==str) : dt = ephem.julian_date(time1)
+		else : which = time1
+	elif (time2 is not None) : dt = ephem.julian_date(time2)
+	dt = dt*24
+	if (dt == -2952) : 
+		showtimes24ephem = time.strftime( '%Y/%m/%d %H:%M:%S', time.localtime() )
+		showtimes12see = time.strftime( '%Y/%m/%d %p %I:%M:%S', time.localtime() )
+		showtimes12outname = time.strftime( '%Y.%m.%d.%p.%I.%M.%S', time.localtime() )
+		showtime = [showtimes24ephem, showtimes12see, showtimes12outname]
+		if (which in [0,1,2]) : return showtime[which]
+		else : return showtime
+	else : 
+		h = int(dt)
+		m = int((dt-h)*60)
+		s = int(round(((dt-h)*60-m)*60))
+		h, m, s = str(h), str(m), str(s)
+		if (len(h) == 1) : h = '0'+h
+		if (len(m) == 1) : m = '0'+m
+		if (len(s) == 1) : s = '0'+s
+		hms = str(h)+':'+str(m)+':'+str(s)
+		return hms
+
+
+##################################################
+##################################################
+##################################################
+
+
+class SysStdout( object ) : 
+
+	def __init__( self ) : 
+		pyname = sys.argv[0].split('/')[-1]
+		self.logf = open(pyname+'.log', 'a')
+		self.logf.write('\n\n\n=============== '+Time(1)+' ===============\n')
+
+	def write( self, outstream ) : 
+		sys.__stdout__.write(outstream)
+		if (outstream[-1]=='\r') : outstream =outstream[:-1]+'\n'
+		if (outstream[0 ]=='\r') : 
+			if (outstream[-1]=='\n') : outstream =outstream[1:]
+			else : outstream =outstream[1:]+'\n'
+		self.logf.write(outstream)
+		self.logf.flush()
+
+	def flush( self ) : 
+		sys.__stdout__.flush()
+
+
+if ('--log' in sys.argv[1:]) : 
+	sysstd = SysStdout()
+	sys.stdout = sys.stderr = sysstd
+
+
+##################################################
+##################################################
+##################################################
+
+
+class ProgressBar( object ) : 
+	'''
+	progressbar = ProgressBar()
+	progressbar.__init__('RemoveRFI.RemoveLoop():', len(array))
+	for i in xrange(len(a)) : progressbar.Progress()
+	'''
+	def __init__( self, string=None, Ntot=None, pltend=False ):
+		self.string, self.Ntot, self.count = string, Ntot, Ntot
+		self.starttime0, self.starttime1 = Time()[:2]
+		self.pltend = pltend
+ 
+	def Progress( self ) : 
+		self.count -=1
+		currenttime0, currenttime1 = Time()[:2]
+		dtime = Time(self.starttime0, currenttime0)
+		if (self.count == self.Ntot-1) : font, end = '', '   \r'
+		elif (self.count != 0) : font, end = '\r', '   '
+		else : font, end = '\r', '   \n'
+		string = font+self.string+'  '+str(self.Ntot-self.count)+'/'+str(self.Ntot)+'  '+dtime+end
+		sys.stdout.write(string)
+		sys.stdout.flush()
+		if (self.pltend) : 
+			if (self.count == 0) : 
+				print self.starttime1+' => '+currenttime1
+
+
+##################################################
+##################################################
+##################################################
+
+
+def JudgeList( a ) : 
+	'''
+	Judge a is [], np.array([]), (,) or not.
+	If is, return True
+	If not, return False
+	'''
+	if (type(a) == list) : t = True
+	elif (type(a) == np.ndarray) : 
+		if (len(a.shape) == 0) : t = False
+		else : t = True
+	elif (type(a) == tuple) :
+		a = np.array(a)
+		if (a.size == 1) : t = False
+		else : t = True
+	else : t = False
+	return t
+
+
+##################################################
+##################################################
+##################################################
+
+
+def Logspace( a, b, nbin=20, relog=False ) : 
+	'''
+	relog:
+		Return in log or in normal
+		relog=True, return in log10
+		relog=False, return in normal
+		renormal = 10**relog
+	'''
+	logsp = np.logspace(np.log10(a), np.log10(b), nbin)
+	if (relog) : logsp = np.log10(logsp)
+	return relog
+
+
+def LogspaceC( a, b, center=0, nbin=20 ) : 
+	'''
+	This function is generally used to get the bins when calculate the probability density.
+
+	a, b:
+		are normal value, not log10.
+		Usually the min() and max() of the sample which is used to calculate the probability density.
+
+	center: 
+		is the average/mean of the sample. 
+
+	The bin size will be smaller when it colses to the center.
+
+	Return: 
+		Also normal value, but the interval is in log10
+	'''
+	if (a < b) : s2l = 1
+	else : s2l = 0
+	a, b = min(a,b), max(a,b)
+	a, b = a-center, b-center  # now a<0, b>0
+	n1 = int(1.*abs(a)/(b-a)*nbin)
+	n2 = nbin - n1
+	logsp1 = -np.logspace(-8, np.log10(abs(a)), n1)
+	logsp2 = np.logspace(-8, np.log10(b), n2)
+	logsp = np.append(logsp1[::-1], logsp2) + center
+	return logsp
+
+
+##################################################
+##################################################
+##################################################
+
+
+def Sort( array, along=('row', 0), l2s=False ) : 
+	'''
+	along:
+		Must tuple() or list[], and must len(along)==2
+		along[0]: 
+			'row' or 'col', sort along row or column
+		along[1]:
+			'row'/'col' number, along which 'row'/'col'
+
+	* Sort (order) the array along axis, array can be any shape.
+
+	* For example, array is 3D, set axis=1, then treat array[:,i,:] as an unit, sort a[:,i,:]. This is different from np.sort()
+
+	* Now, this function can just handle 2D.
+
+	* Parameter:
+		array will be sorted along sortaxisnumberTH sortaxis.
+		** For 2D, sortaxis=1->column, souraxisnumber=3, means sort along 3th column (an di 3 lie pai xu)
+
+		along:
+			Must tuple() or list[], and must len(along)==2
+			along[0]: 
+				'row' or 'col', sort along row or column
+			along[1]:
+				'row'/'col' number, along which 'row'/'col'
+
+		l2s: 
+			l2s=True : from large to small
+			l2s=False: from small to large (default)
+
+	* 1D: array can be complex
+	* 2D: array must be real, not complex !
+	'''
+	array = npfmt(array)
+	shapea = array.shape
+	n = len(shapea)
+	if (n > 2) : Raise("Sort() can just handle 2D array now.")
+	# Just for 1-2D array
+	sortaxis, sortaxisnumber = along[0].lower(), along[1]
+	if (sortaxis in ['col', 'c', 'column']) : sortaxis = 1
+	else : sortaxis = 0
+	#-----------------------
+	if (n == 1) :
+		sorta = np.sort(array)
+		if (l2s == True) : sorta = sorta[::-1]
+		return sorta
+	if (sortaxis >= n) : raise Exception("Error: Sort(), sortaxis="+str(sortaxis)+" out of array.shape="+str(shapea))
+	sorta = array * 0  # same type and same shape
+	if (n == 2) : 
+		if (sortaxisnumber >= shapea[sortaxis]) : raise Exception("Error: Sort(), sortaxisnumber="+str(sortaxisnumber)+" is out of total number of row="+str(shape[sortaxis]))
+		if (sortaxis == 0) : ai = array[sortaxisnumber]
+		if (sortaxis == 1) : ai = array[:,sortaxisnumber]
+		ai = ai + 1j*np.arange(ai.size)
+		num = (np.sort(ai).imag+0.01).astype(int)
+		if (l2s == True) : num = num[::-1]
+		ai = 0 #@
+		for i in range(len(num)) : 
+			if (sortaxis == 0) : sorta[:,i] = array[:,num[i]]
+			if (sortaxis == 1) : sorta[i] = array[num[i]]
+		return sorta
+
+
+def SortStrNum( a ) : 
+	'''
+	a is any type of list or array.
+	Take the first 'whole' number, and sort.
+	For example:
+		a = ['a12', 'b2-3', 'c35', 'd7_0', 'e4']
+		SortStrNum(a) = ['b2-3', 'e4', 'd7_0', 'a12', 'c35']
+		first 'whole' numbers are 2, 4, 7, 12, 35
+
+	This function is useful for sort filename
+	a = [23, 100, 4, 'xy', 'abc0', 'a12', 'b2-3', 'c35', 'd7_0', 'e4']
+	'''
+	n = []
+	astr = np.array(a, str)
+	for i in range(len(astr)) : 
+		b = astr[i]
+		n1, n2 = len(b), len(b)
+		for j in range(len(b)) : 
+			if (48 <= ord(b[j]) <= 57) : 
+				n1 = j
+				break
+		for j in range(n1+1, len(b)) : 
+			if (48 > ord(b[j]) or ord(b[j]) > 57) : 
+				n2 = j
+				break
+		if (n1 == len(b)) : n = n + [-1]
+		else : n = n + [int(b[n1:n2])]
+	n = np.array(n)
+	n[n<0] = n.max()+1
+	nmax = n.max()
+	n = np.append([n], [np.arange(len(astr))], 0)
+	n = Sort(n)
+	n1 = -1
+	for i in range(len(n[0])) : 
+		if (n[0,i] == nmax) : 
+			n1 = i
+			break
+	n = n[1]
+	astr = []
+	for i in range(len(a)) : 
+		astr = astr + [a[n[i]]]
+	if (n1 != -1) : 
+		astr = astr[:n1] + list(np.sort(astr[n1:]))
+	return astr
+
+
+##################################################
+##################################################
+##################################################
+
+
+def Invalid( array, mask=True ) : 
+	'''
+	nan, inf are invalid value.
+
+	mask:
+		True    : just mask them, shape of array won't change.
+		False   : remove invalid value, will flatten the array.
+		An value: the masked will be set to be this value.
+	'''
+	array = np.ma.masked_invalid(array)
+	if (mask is True) : pass
+	elif (mask is False) : array = (array.data)[True-array.mask]
+	else : 
+		(array.data)[array.mask] = mask
+	#	array = array.data
+	return array
 
 
 ##################################################
@@ -368,6 +1058,139 @@ def Solve( func, rootrange=None, N=1e7, err=1, twice=False ) :
 ##################################################
 
 
+def CoordTrans( coordin, coordout, RAlHp, Decb=None, epoch='2000' ) : 
+	'''
+	Transform from coordin ot coordout
+	=> 1min transforms 8.3e6 pixels
+
+	coordin, coordout:
+		'Galactic' or 'Equatorial'
+
+	RAlHp, Decb (angle in rad):
+		if Decb==None, RAlHp = hpmap (Healpix Map)
+		else, RAlHp = RAl
+	RAl: [0, 2*np.pi]
+	Decb: [-np.pi/2, np.pi/2]
+	RAl, Decb can be scale, list, ndarray
+
+	return:
+		same shape as RAl/Decb.shape
+		if Decb==None, return newhpmap
+		else, return [RAl, Decb]
+	'''
+	def _CoordTrans( coordin, coordout, RAl, Decb, epoch ) : 
+		#--------------------------------------------------
+		islist = True
+		if (Type(RAl)=='NumType' and Type(Decb)=='NumType') : islist = False
+		RAl, Decb = npfmt(RAl), npfmt(Decb)
+		if (RAl.shape != Decb.shape) : raise Exception('RAl.shape != Decb.shape')
+		shape = RAl.shape
+		RAl, Decb = RAl.flatten(), Decb.flatten()
+		#--------------------------------------------------
+		x, y = [], []
+		if (coordin == 'galactic') : 
+			for i in range(len(RAl)) : 
+				xy = ephem.Galactic(RAl[i], Decb[i], epoch=epoch)
+				xy = ephem.Equatorial(xy, epoch=epoch)
+				x.append(xy.ra+0)
+				y.append(xy.dec+0)
+		elif (coordin == 'equatorial') : 
+			for i in range(len(RAl)) : 
+				xy = ephem.Equatorial(RAl[i], Decb[i], epoch=epoch)
+				xy = ephem.Galactic(xy, epoch=epoch)
+				x.append(xy.lon+0)
+				y.append(xy.lat+0)
+		if (islist == False) : x, y = x[0], y[0]
+		else: x, y=npfmt(x).reshape(shape), npfmt(y).reshape(shape)
+		return np.array([x, y])
+	#--------------------------------------------------
+	coordin, coordout = coordin.lower(), coordout.lower()
+	if (coordin[0] == 'g') : coordin = 'galactic'
+	elif (coordin[0] == 'e') : coordin = 'equatorial'
+	else : raise Exception('coordin="'+coordin+'" not in ("galactic","equatorial")')
+	if (coordout[0] == 'g') : coordout = 'galactic'
+	elif (coordout[0] == 'e') : coordout = 'equatorial'
+	else : raise Exception('coordout="'+coordout+'" not in ("galactic","equatorial")')
+	if (coordin == coordout) : 
+		if (Decb is None) : return RAlHp
+		else : return np.array([RAlHp, Decb])
+	#--------------------------------------------------
+	if (Decb is not None) : 
+		return _CoordTrans(coordin, coordout, RAlHp, Decb, epoch)
+	else : 
+		# RAlHp is Healpix Map
+		nside = hp.get_nside(RAlHp)
+		x, y = hp.pix2ang(nside, np.arange(RAlHp.size)) # Out
+		y, x = _CoordTrans(coordout, coordin, y, np.pi/2-x, epoch)
+		n = hp.ang2pix(nside, np.pi/2-x, y)
+		return RAlHp[n]
+
+
+#def EquatorialGalactic( mode, para1, para2 ) : 
+#def EquatorialGalactic( para1, para2, mode="radec2lb" ) : 
+def EquatorialGalactic( para1, para2, which='e2g' ) : 
+	'''
+	Convert RADec to lb or lb to RADec
+	Use ephem.Equatioral() and ephem.Galactic()
+
+	which:
+		='e2g': 
+			convert from equatorial to galactic
+			para1=RA, para2=Dec
+		='g2e':
+			convert from galactic to equatorial
+			para1=l, para2=b
+	
+	para1, para2:
+		can be one value or a list or n-D array, in rad
+		RA , l -> [0, 360]
+		Dec, b -> [+90, -90]
+
+	All angles (input and output) are in rad.
+	
+	return:
+		also in rad, (RA,Dec) ro (l,b)
+			first  row is RA  or l
+			second row is Dec or b
+		You can use RA, Dec = return_array to get them.
+	'''
+	if (which == 'e2g') : radec2lb = True
+	elif (which == 'g2e') : radec2lb = False
+	else : raise Exception('which="'+which+'", not "e2g" or "g2e"')
+	para1, para2 = npfmt(para1), npfmt(para2)
+	if   (para1.size==1 and para2.size!=1) : para1 = para2*0+para1.mean()
+	elif (para1.size!=1 and para2.size==1) : para2 = para1*0+para2.mean()
+	if ( para1.shape != para2.shape ) : raise TypeError( 'para1.shape != para2.shape' )
+	shape = para1.shape
+	para1 = para1.flatten()
+	para2 = para2.flatten()
+	if (radec2lb) : para1 = para1 * 180/np.pi / 15  # hour, list
+	else : para1 = para1 * 180/np.pi  # degree
+	para2 = para2 * 180/np.pi  # degree
+	para2[para2 >90] =  180 - para2[para2 >90]
+	para2[para2<-90] = -180 - para2[para2<-90]
+	result = np.zeros( [ 2, len(para1) ] )
+	if (radec2lb) :
+		for i in range( len(para1) ) : 
+			RA  = ('%.10f' % para1[i])
+			Dec = ('%.10f' % para2[i])
+			Eo = ephem.Equatorial( RA, Dec )
+			gal = ephem.Galactic( Eo )
+			result[0,i] = gal.lon+0
+			result[1,i] = gal.lat+0
+	else :
+		for i in range( len(para1) ) : 
+			l = ('%.10f' % para1[i])
+			b = ('%.10f' % para2[i])
+			go = ephem.Galactic( l, b )
+			Equ = ephem.Equatorial( go )
+			result[0,i] = Equ.ra+0
+			result[1,i] = Equ.dec+0
+	if (result.size == 2) : result = result.flatten()
+	x, y = result
+	x, y = x.reshape(shape), y.reshape(shape)
+	result = np.append([x], [y], 0)
+	return result
 
 #	Mathematical formulas
 #	RAgp = 192.85948 * np.pi / 180.0
@@ -593,6 +1416,74 @@ def RADecxyz( func, dc, RA0=0, Dec0=0, RA_range=0, Dec_range=0, RA=0, Dec=0, Lx=
 ##################################################
 
 
+def ConjugateSymmetrize( Array ) : 
+	'''
+	This function is used to symmetrize the array which will be used to do the inverse Fourier transform.
+
+	Array is a N dimension array (real matrix or complex matrix), N can just be 1,2,3
+	'''
+	a = Array
+	Shape = np.array( a.shape ) % 2
+	if ( Shape.max() != 0 ) : 
+		Error('Length of each dimension of input Array must be even')
+	func = len( a.shape )
+	if ( func > 3 ) : 
+		Error('dimension of array must be 1D or 2D or 3D')
+
+	def conjugate_symmetrize_axis( a ) : 
+		a = np.append( a[:a.size/2+1], a[1:a.size/2][::-1].conjugate() )
+		a[a.size/2] = 0
+		return a
+	
+	def conjugate_symmetrize_plane( a ) : 
+		# x and y axis
+		x = a[0,:]
+		y = a[:,0]
+		a[0,:] = conjugate_symmetrize_axis( x )
+		a[:,0] = conjugate_symmetrize_axis( y )
+		# xy plane exclude x and y axis
+		xy = a[1:y.size/2+1,1:]
+		a[1:,1:] = np.append( xy, xy[:-1][::-1,::-1].conjugate(), 0 )
+		# vertical medium axis
+		axisp = a[y.size/2]
+		a[y.size/2] = conjugate_symmetrize_axis( axisp )
+		return a
+	
+	def conjugate_symmetrize_solid( a ) : 
+		# x, y, z axis
+		x = a[0,0,:]
+		y = a[0,:,0]
+		z = a[:,0,0]
+		a[0,0,:] = conjugate_symmetrize_axis( x )
+		a[0,:,0] = conjugate_symmetrize_axis( y )
+		a[:,0,0] = conjugate_symmetrize_axis( z )
+		# xy, xz, yz planes
+		xy = a[0]
+		xz = a[:,0]
+		yz = a[:,:,0]
+		a[0]     = conjugate_symmetrize_plane( xy )
+		a[:,0]   = conjugate_symmetrize_plane( xz )
+		a[:,:,0] = conjugate_symmetrize_plane( yz )
+		# solid
+		xyz = a[1:len(a)/2+1,1:,1:]
+		a[1:,1:,1:] = np.append( xyz, xyz[:-1][::-1,::-1,::-1].conjugate(), 0 )
+		# medium plane
+		mplane = a[len(a)/2]
+		a[len(a)/2] = conjugate_symmetrize_plane( mplane )
+		return a
+
+	if ( func == 1 ) : 
+		a = conjugate_symmetrize_axis( a )
+		a[0] = 0
+	elif ( func == 2 ) : 
+		a = conjugate_symmetrize_plane( a )
+		a[0,0] = 0
+	elif ( func == 3 ) : 
+		a = conjugate_symmetrize_solid( a )
+		a[0,0,0] = 0
+	return a
+
+
 ##################################################
 ##################################################
 ##################################################
@@ -811,182 +1702,83 @@ def CAMB( redshift, cambpath='/usr/bin/camb' ) :
 ##################################################
 
 
-##################################################
-##################################################
-##################################################
-
-
-def LAB( freq, theta, phi, coordsys, labpath='labh_3D.fits' ) : 
+def GSM( frequency, fmt=None, bit=32, gsmpath='/usr/bin/gsm/' ):
 	'''
-	freq:
-		in MHz
-		(1) Scale/One value: freq=1420.40575
-		(2) "1D" list/tuple/ndarray: freq=np.array([1420.3, 1420.406, 1420.5])
+	Generate foreground all sky map by GSM:
+		nside=512, ring, K, Galactic.
 
-	theta:
-		in degree
-		from +90 (North pole) to -90 (South pole)
-		Must have the same shape as phi: theta.shape==phi.shape
-		theta can be any shape (N-D)
-	
-	phi:
-		in degree
-		from 0 to 360
-		Must have the same shape as theta: theta.shape==phi.shape
-		phi can be any shape (N-D)
+	frequency: 
+		MHz. one value or list or tuple or ndarray
 
-	coordsys:
-		Must be 'Galactic' or 'Equatorial'
-		If coordsys=='Galactic',   theta=>b,   phi=>l
-		If coordsys=='Equatorial', theta=>Dec, phi=>RA
+	fmt:
+		'npy', 'fits', None
+		=None: GSM default save to 'dat'
+		='npy': Convert .dat to .npy, then delete .dat file
+		='fits': Save to .fits
 
-	labpath:
-		Path of LAB FITS file 'labh_3D.fits'
+	bit:
+		32, 64
+		Save to float32 or float64
 
 	return:
-		data
-		data.shape = (freq.size, theta.shape)
-
-
-	#*****************************************************
-
-
-	if __name__=='__main__' : 
-	
-		if (len(sys.argv) > 1) : 
-			
-			parser = OptionParser() 
-			parser.add_option('-f', '--freq', dest='freq', type='float', help='frequency in MHz') 
-			parser.add_option('-t', '--theta', dest='theta', type='string', help='theta angle in degree, from +90 (North pole) to -90 (South pole). Usage: --theta -30,45,5  => start -30deg, end +45deg, step 5deg')
-			parser.add_option('-p', '--phi', dest='phi', type='string', help='phi angle in degree, from 0 to 360. Usage: --phi 50,300,10  => start 50deg, end 300deg, step 10deg')
-			parser.add_option('-c', '--coordsys', dest='coordsys', type='string', help="Coordinate system, must be 'Galactic' or 'Equatorial'") 
-			parser.add_option('-o', '--outname', dest='outname', type='string', default='', help='The name of output file') 
-			parser.add_option('--labpath', dest='labpath', type='string', default='labh_3D.fits', help='Path of the LAB FITS file') 
-			options, args = parser.parse_args() 
-	
-			# 1D theta
-			theta = np.array(options.theta.split(','), float)
-			if (theta[2] == 0) : theta[2] = 1e-4
-			theta = np.arange(theta[0], theta[1]+theta[2]/100, theta[2])
-			
-			# 1D phi
-			phi = np.array(options.phi.split(','), float)
-			if (phi[2] == 0) : phi[2] = 1e-4
-			phi = np.arange(phi[0], phi[1]+phi[2]/100., phi[2])
-			
-			# 2D theta, phi
-			theta = theta[:,None] + np.zeros([1,phi.size])
-			phi = phi[None,:] + np.zeros(theta.shape)
-			
-			freq = options.freq
-			coordsys = options.coordsys
-			outname = options.outname
-			labpath = options.labpath
-		
-		else : 
-			# Please see LAB() function above for the parameters below
-			freq  = 
-			theta = 
-			phi   = 
-			coordsys =
-			outname  = 
-			labpath  = 'labh_3D.fits'
-
-		##################################################
-	
-		if (outname == '') : outname = 'lab_slice.npy'
-		if (outname[-4:] != '.npy') : outname += '.npy'
-		data = LAB(freq, theta, phi, coordsys, labpath)
-		np.save(outname, data)
-		print outname+'  -->  saved'
+		[[outname, open_function], [,], [,], ...]
+		if (Type(frequency)=='NumType'): return [outname, open_function]
 	'''
-	coordsys = str(coordsys)
-	if (coordsys.lower() not in ['galactic', 'equatorial']) : raise Exception("coordsys='"+coordsys+"' not in ['Galactic', 'Equatorial']")
-	
-	# freq must be 1D
-	freq = np.array(freq).flatten()
-	
-	# theta, phi must have the same shape
-	theta, phi = np.array(theta), np.array(phi)
-	if (theta.shape != phi.shape) : raise Exception('thets.shape != phi.shape')
-	shapethetaphi = theta.shape
-	if (shapethetaphi == ()) : shapethetaphi = (1,)
-	theta, phi = theta.flatten(), phi.flatten()
-	
-	# Open LAB.fits
-	fo  = pyfits.open(labpath)
-	hdr = fo[0].header
-	bzero  = hdr['BZERO_']
-	bscale = hdr['BSCALE_']
-	blank  = hdr['BLANK_']
-	rfreq = hdr['RFREQ']
-	dfreq = hdr['DFREQ']
-	Nfreq = hdr['NAXIS3']
-	rtheta = hdr['CRVAL2']
-	dtheta = hdr['CDELT2']
-	Ntheta = hdr['NAXIS2']
-	rphi = hdr['CRVAL1']
-	dphi = hdr['CDELT1']
-	Nphi = hdr['NAXIS1']
-	
-	freqmax = rfreq + (Nfreq-1)*dfreq
-	if (freq.min()<rfreq or freq.max()>freqmax) : raise Exception('freq.min()='+str(freq.min())+', freq.max()='+str(freq.max())+' out of LAB frequency range: '+str(rfreq)+' ~ '+str(freqmax)+' MHz')
-	
-	# phi from 180 to -180
-	phi[phi>rphi] -= 360
-	
-	# index of theta and phi
-	ntheta = ((theta-rtheta)/dtheta).astype(int)
-	nphi   = ((phi-rphi)/dphi).astype(int)
-	ntheta[ntheta>=Ntheta] = Ntheta-1
-	nphi[nphi>=Nphi] = Nphi-1
-	theta = phi = 0 #@
-	
-	# index of freq
-	nfreq = ((freq-rfreq)/dfreq).round().astype(int)
-	nfreq[nfreq>=Nfreq] = Nfreq-1
-	freq = 0 #@
-	
-	# theta-phi 2D index
-	nthetaphi = np.array([ntheta, nphi]).T
-	ntheta = nphi = 0 #@
-	
-	def N2One( indexnd, shapend ) : 
-		indexnd = np.array(indexnd)
-		if (len(indexnd.shape) == 1) : indexnd = indexnd[None,:]
-		shapendprod = np.cumprod(shapend[::-1])[:-1][::-1]
-		shapendprod = np.concatenate([shapendprod, [1]])[None,:]
-		indexnd *= shapendprod
-		return indexnd.sum(1)
-	
-	# LAB data
-	data = fo[0].data[nfreq]
-	shapedata = data.shape
-	
-	# Reshape to 2D
-	# First axis is freq, second axis is 1D theta-phi
-	data = data.reshape(shapedata[0], np.prod(shapedata[1:]))
-	
-	# 2D theta-phi to 1D
-	n1d = N2One(nthetaphi, shapedata[1:])
-	
-	if (coordsys.lower() == 'equatorial' ) : 
-		nDecb, nRAl = fo[1].data
-		nDecb, nRAl = nDecb.flatten()[n1d], nRAl.flatten()[n1d]
-		nbl = np.array([nDecb, nRAl], int).T
-		n1d = N2One(nbl, shapedata[1:])
-	
-	data = data[:,n1d]
-	
-	# Reshape
-	shape = (shapedata[0],) + shapethetaphi
-	data = data.reshape( shape )
-	
-	# BLANK
-	data[data<=blank] = 0
-	# Rescale
-	data = np.float32(data *bscale +bzero)
-	return data
+	typefreq = Type(frequency)
+	freqlist = npfmt(frequency).flatten()
+	outnamelist = []
+	openfunclist = []
+	for i in freqlist : 
+		freqstr = str(i)
+		outname = 'gsm_'+freqstr
+		outexist = ShellCmd('ls '+outname+'.*')
+		if (outexist.size > 0) : # exist
+			if (outname+'.npy' in outexist) : 
+				outnamelist.append(outname+'.npy')
+				openfunclist.append(np.load)
+			elif (outname+'.fits' in outexist) : 
+				outnamelist.append(outname+'.fits')
+				openfunclist.append(pyfits.getdata)
+			else : 
+				outnamelist.append(outexist[0])
+				openfunclist.append(np.loadtxt)
+		else : 
+			gsmpath = gsmpath if(gsmpath[-1]=='/')else gsmpath+'/'
+			if (not os.path.exists(gsmpath+'gsm_parameter.out')):
+				try : 
+					gsmpathout = gsmpath
+					os.system('gfortran -ffixed-line-length-none '+gsmpath+'gsm_parameter.f -o '+gsmpathout+'gsm_parameter.out')
+				except : 
+					gsmpathout = ''
+					os.system('gfortran -ffixed-line-length-none '+gsmpath+'gsm_parameter.f -o '+gsmpathout+'gsm_parameter.out')
+			os.system(gsmpathout+'gsm_parameter.out '+freqstr+' '+outname+'.dat '+gsmpath)
+			if (fmt is None) : fmt = 'dat'
+			if (fmt[-3:].lower() == 'npy') : 
+				a = np.loadtxt(outname+'.dat')
+				if   (bit == 32) : a = np.float32(a)
+				elif (bit == 64) : a = np.float64(a)
+				np.save(outname, a)
+				a = 0 #@
+				os.system('rm '+outname+'.dat')
+				outnamelist.append(outname+'.npy')
+				openfunclist.append(np.load)
+			elif (fmt[-4:].lower() == 'fits') : 
+				a = np.loadtxt(outname+'.dat')
+				if   (bit == 32) : a = np.float32(a)
+				elif (bit == 64) : a = np.float64(a)
+				Array2FitsImag(a, outname+'.fits')
+				a = 0 #@
+				os.system('rm '+outname+'.dat')
+				outnamelist.append(outname+'.fits')
+				openfunclist.append(pyfits.getdata)
+			else : 
+				outnamelist.append(outname+'.dat')
+				openfunclist.append(np.loadtxt)
+	returnlist = []
+	for i in range(len(outnamelist)) : 
+		returnlist.append([outnamelist[i], openfunclist[i]])
+	if (typefreq == 'NumType') : returnlist = returnlist[0]
+	return returnlist
 
 
 ##################################################
@@ -1425,83 +2217,83 @@ def LogNormalValue( x, mean, std ) :
 #	return p
 #
 #
-def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
-	'''
-	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
-
-	func: 
-		(1) "polynomial":
-			index is the highest order of x
-			index=0: y = a + const*x
-			index=1: y = a + b*x
-			index=2: y = a + b*x + c*x^2
-			return [a, b, c]
-		(2) "gaussian":
-			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
-			return [mean, sigma]
-		(3) "power-law":
-			y = a*x^b
-			return [a, b]
-
-	p0index:
-		func=='polynomial': p0index=index
-		func=='gaussian'  : p0index=[mean, stdev]
-		func=='power-law' : p0index=[a,b]
-
-	spORmy:
-		Use LeastsqSP() or LeastsqMatrix().
-		(1) ='sp'
-		(2) ='both'
-		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
-	'''
-	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
-	x, y = npfmt(x), npfmt(y)
-	if (func.lower() == 'polynomial') : 
-		if (type(p0index) not in [list, np.ndarray]) : 
-			p0index = int(round(p0index))
-			p0 = np.ones(p0index+1)
-			p2 = LeastsqSP(x, y, func, p0)
-			if (spORmy == 'both') : 
-				p1 = LeastsqMatrix(x, y, func, p0index)
-				p2 = np.append([p2], [p1], 0)
-		else : 
-			p2 = LeastsqSP(x, y, func, p0index)
-			if (spORmy == 'both') : 
-				index = len(p0index) - 1
-				p1 = LeastsqMatrix(x, y, func, index)
-				p2 = np.append([p2], [p1], 0)
-		return p2
-	elif (func.lower() == 'power-law') : 
-		if (x.max()>0 and x.min()>0) : 
-			if (type(p0index) not in [list, np.ndarray]) : 
-				if (y.max()>0 and y.min()>0) : p0index=[1,1]
-				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-		elif (x.max()>0 and x.min()<0) : 
-			xy = np.append(x[:,None], y[:,None], 1)
-			xy = xy[xy[:,0]>0]
-			x, y = xy.T
-			if (y.max()>0 and y.min()>0) : p0index=[1,1]
-			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
-		p = LeastsqSP(x, y, func, p0index)
-		return p
-	elif (func.lower() == 'gaussian') : 
-		xy = np.append(x[:,None], y[:,None], 1)
-		xy = xy[xy[:,1]>0]
-		x, y = xy.T
-		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
-		stdev = RMS(x-mean)
-		if (stdev == 0) : stdev = 1
-		if (type(p0index) not in [list, np.ndarray]) : 
-			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
-		else : 
-			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
-		if (spORmy == 'both') : 
-			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
-			p2 = np.append([p2], [p1], 0)
-		return p2
+#def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
+#	'''
+#	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
+#
+#	func: 
+#		(1) "polynomial":
+#			index is the highest order of x
+#			index=0: y = a + const*x
+#			index=1: y = a + b*x
+#			index=2: y = a + b*x + c*x^2
+#			return [a, b, c]
+#		(2) "gaussian":
+#			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
+#			return [mean, sigma]
+#		(3) "power-law":
+#			y = a*x^b
+#			return [a, b]
+#
+#	p0index:
+#		func=='polynomial': p0index=index
+#		func=='gaussian'  : p0index=[mean, stdev]
+#		func=='power-law' : p0index=[a,b]
+#
+#	spORmy:
+#		Use LeastsqSP() or LeastsqMatrix().
+#		(1) ='sp'
+#		(2) ='both'
+#		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
+#	'''
+#	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
+#	x, y = npfmt(x), npfmt(y)
+#	if (func.lower() == 'polynomial') : 
+#		if (type(p0index) not in [list, np.ndarray]) : 
+#			p0index = int(round(p0index))
+#			p0 = np.ones(p0index+1)
+#			p2 = LeastsqSP(x, y, func, p0)
+#			if (spORmy == 'both') : 
+#				p1 = LeastsqMatrix(x, y, func, p0index)
+#				p2 = np.append([p2], [p1], 0)
+#		else : 
+#			p2 = LeastsqSP(x, y, func, p0index)
+#			if (spORmy == 'both') : 
+#				index = len(p0index) - 1
+#				p1 = LeastsqMatrix(x, y, func, index)
+#				p2 = np.append([p2], [p1], 0)
+#		return p2
+#	elif (func.lower() == 'power-law') : 
+#		if (x.max()>0 and x.min()>0) : 
+#			if (type(p0index) not in [list, np.ndarray]) : 
+#				if (y.max()>0 and y.min()>0) : p0index=[1,1]
+#				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+#				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+#		elif (x.max()>0 and x.min()<0) : 
+#			xy = np.append(x[:,None], y[:,None], 1)
+#			xy = xy[xy[:,0]>0]
+#			x, y = xy.T
+#			if (y.max()>0 and y.min()>0) : p0index=[1,1]
+#			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+#			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+#		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
+#		p = LeastsqSP(x, y, func, p0index)
+#		return p
+#	elif (func.lower() == 'gaussian') : 
+#		xy = np.append(x[:,None], y[:,None], 1)
+#		xy = xy[xy[:,1]>0]
+#		x, y = xy.T
+#		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
+#		stdev = RMS(x-mean)
+#		if (stdev == 0) : stdev = 1
+#		if (type(p0index) not in [list, np.ndarray]) : 
+#			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
+#		else : 
+#			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
+#		if (spORmy == 'both') : 
+#			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
+#			p2 = np.append([p2], [p1], 0)
+#		return p2
 
 
 def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) : 
@@ -1682,9 +2474,112 @@ def CompactDimension( array ) :
 ##################################################
 
 
+def Edge2Center( array ) : 
+	'''
+	Elements of array can be treated as the centers or the edges of bins
+	array is the edges, return the centers
+	array can be non-uniform.
+	'''
+	array = npfmt(array)
+	if (len(CompactDimension(array).shape) != 1) : 
+		Raise(Exception, 'array must be 1D.')
+	step = array[1:] - array[:-1]
+	return array[:-1] + step/2.
+
+
+def Center2Edge( array ) : 
+	'''
+	Elements of array can be treated as the centers or the edges of bins
+	array is the centers, return the edges, in this case, intervals of the center must be uniform
+	array can be non-uniform.
+	'''
+	array = npfmt(array)
+	if (len(CompactDimension(array).shape) != 1) : 
+		Raise(Exception, 'array must be 1D.')
+	step = array[1:] - array[:-1]
+	n = array.size
+	if ((1.*step.max()-step.min())/step.max()<0.01) : 
+		edge = np.zeros([n+1,]) + array[n-1]+step.mean()/2.
+		edge[:n] = array - step.mean()/2.
+		return edge
+	else : 
+		edge = np.zeros([n-2, n+1])
+		m = n/2
+		j = 0
+		for m in range(1, n-1) : 
+			edge[j,m] = array[m] - (step[m]+step[m-1])/4.
+			for i in range(m-1, -1, -1) : 
+				edge[j,i] = 2*array[i] - edge[j,i+1]
+			for i in range(m+1, n+1) : 
+				edge[j,i] = 2*array[i-1] - edge[j,i-1]
+			j = j + 1
+		return edge.mean(0)
+
+
+
 ##################################################
 ##################################################
 ##################################################
+
+
+def binsarcsinh( array, nbins=None ) : 
+	'''
+	When use ProbabilityDensity() and RemoveBeyond(), we need to set bins.
+	This function is used to return a reasonable bins.
+
+	nbins = bins.size
+	'''
+	# Get mean of array
+	if (nbins is None) : nbins = array.size/10
+	if (nbins < 5) : nbins = 5
+	amin, amax = array.min(), array.max()
+	am = array.mean()
+	sa = 3*array.std()
+	am1, am2 = am-sa, am+sa
+	a1, a2 = min(am1, am2), max(am1, am2)
+	array = array[(array>a1)*(array<a2)].copy()
+	am = array.mean()
+	# np.arcsinh bins
+	b1, b2 = np.arcsinh(amin-am), np.arcsinh(amax-am)
+	bins = np.sinh(np.linspace(b1, b2, nbins)) + am
+	bins[0] = bins[0]-0.01*abs(bins[0])
+	bins[-1] = bins[-1]+0.01*abs(bins[-1])
+	return bins
+
+
+def ProbabilityDensity( array, bins=None, density=True ) : 
+	'''
+	Return the probability density or number counting of array.
+	
+	array:
+		Input array will flatten()
+	
+	bins:
+		bins can be int or list or np.array.
+		bins = int:
+			Number of the uniform bins
+		bins = list or np.array:
+			Edges of the bins. Note that number of edges = 1 + number of bins.
+			You can set any non-uniform bin widths with this parameter, such as log bin.
+	
+	density:
+		If True, return the probability density = counting / total number / bin width
+		If False, return the counting number of each bin
+
+	bincenter:
+		If True, return the center values of the bins
+		If Flase, return the edge of the bins
+	
+	Return:
+		[x, xc, y]
+		x  is the edge of the bins.
+		xc is the center of the bins.
+		y  is the probability density of each bin, 
+	'''
+	if (bins is None) : bins = binsarcsinh(array)
+	y, x = np.histogram(array, bins=bins, density=density)
+	xc = Edge2Center(x)
+	return [x, xc, y]
 
 
 ##################################################
@@ -1708,80 +2603,6 @@ def CMBtemperature( frequency ) :
 ##################################################
 ##################################################
 ##################################################
-
-
-class ThetaPhi( object ) : 
-
-
-	def Theta1D( self, thetasize, Ntheta, project=True ) :
-		'''
-		thetasize:
-			Total angle size of theta in rad
-
-		Ntheta:
-			Total number of theta points
-
-		project:
-			False: uniform theta
-			True: sin speed theta
-		'''
-		N, resol = Ntheta, 1.*thetasize / Ntheta
-		if (N%2 == 0) : N, thetasize = N+1, thetasize+resol
-		t = np.linspace(-thetasize/2., thetasize/2., N)
-		if (project) : 
-			t = np.sin(t)
-			t = t[1:] - t[:-1]
-			t = np.cumsum((t / t.sum() * thetasize)[N/2:])
-			t = np.concatenate([-t[::-1], [0], t])
-		t = t[-Ntheta:]
-		return t
-
-
-	def Theta2D( self, thetarow, thetacol, mask=False ) : 
-		'''
-		thetarow, thetacol:
-			ndarray/list of theta of row/column in rad
-
-		theta: theta[Nrow/2,Ncol/2]=0, center=0
-		'''
-		thetarow, thetacol = npfmt(thetarow).flatten(), npfmt(thetacol).flatten()
-		theta2d = (thetarow[:,None]**2+thetacol[None,:]**2)**0.5
-		if (mask) : 
-			# Must thetarow, thetacol in [-180->0->180]
-			nl = thetarow[thetarow>np.pi].size
-			ns = thetarow[thetarow<-np.pi].size
-			if (nl != 0 or ns != 0) : 
-				thetarow %= 2*np.pi
-				thetarow[thetarow>np.pi] -= 2*np.pi
-			nrl = thetacol[thetacol>np.pi].size
-			nrs = thetacol[thetacol<-np.pi].size
-			if (nl != 0 or ns != 0) : 
-				thetacol %= 2*np.pi
-				thetacol[thetacol>np.pi] -= 2*np.pi
-			one = thetarow[:,None]**2/thetarow.max()**2 + thetacol[None,:]**2/thetacol.max()**2
-			theta2d = np.ma.MaskedArray(theta2d, one>1)
-		return theta2d
-
-
-	def Phi2D( self, thetarow, thetacol, mask=False ) : 
-		'''
-		thetarow, thetacol:
-			ndarray/list of theta of row/column in rad
-	
-		phi:      90                  270    
-		     180      0     or    180      0 
-		         270                   90    
-		'''
-		thetarow, thetacol = npfmt(thetarow).flatten(), npfmt(thetacol).flatten()
-		theta2d = self.Theta2D(thetarow, thetacol, mask=mask)
-		if (mask) : 
-			theta2dmask = theta2d.mask
-			theta2d = theta2d.data
-		theta2d[theta2d==0] = 1e-20
-		Nr, Nc = thetarow.size, thetacol.size
-		phi2d = np.angle(thetacol[None,:]/theta2d + 1j*thetarow[:,None]/theta2d) %(2*np.pi)
-		if (mask) : phi2d = np.ma.MaskedArray(phi2d, theta2dmask)
-		return phi2d
 
 
 def GaussianBeam( theta, FWHM, normalized=False ) : 
@@ -1808,66 +2629,66 @@ def EllipticGaussianBeam( theta, phi, FWHM1, FWHM2, normalized=False ) :
 	else : return b/(np.pi/a)**0.5
 
 
-#def ThetaPhiMatrix(fieldofview, pixelnumber, project=False) :
-#	'''
-#	fieldofview:
-#		total field of view (from left to rignt) in rad.
-#
-#	pixelnumber:
-#		pixelnumber must be odd.
-#		theta and phi matrix shape = (pixelnumber, pixelnumber)
-#
-#	project:
-#		True: Spherical projects to flat.
-#		False: Spherical angle.
-#
-#	# At the center (pixelnumber/2, pixelnumber/2), theta = 0
-#	# phi = 0 at the [pixelnumber/2:, pixelnumber/2], it means:
-#			-x
-#		-y		+y
-#			+x
-#
-#	return:
-#		[theta, phi] in rad.
-#	'''
-#	# pixelnumber must be odd
-#	if (project is not False) : 
-#		if (fieldofview > np.pi) : fieldofview = np.pi
-#	N0 = pixelnumber = int(pixelnumber)
-#	if (pixelnumber%2 == 0) : pixelnumber = pixelnumber + 1
-#	N = pixelnumber / 2
-#	# Matrix
-#	theta = np.zeros([pixelnumber, pixelnumber]) -1
-#	phi = theta.copy()
-#	# Length of each pixel
-#	if (project is False) : 
-#		dx = fieldofview / (pixelnumber-1)
-#	else : 
-#		dx = np.sin(fieldofview/2.) / N
-#	for i in range(N+1) : 
-#		for j in range(N) : 
-#			if (project is False) : 
-#				theta[i,j] = dx*((N-i)**2+(N-j)**2)**0.5 
-#			else : 
-#				d = dx*((N-i)**2+(N-j)**2)**0.5
-#				if (abs(d) > 1) : pass
-#				else : theta[i,j] = np.arcsin(d)
-#			phi[i,j] = np.pi - np.arctan(1.*(N-i)/(N-j))
-#	theta[N+1:] = theta[:N][::-1]
-#	theta[:,N+1:] = theta[:,:N][:,::-1]
-#	theta[N,N] = 0
-#	theta[:,N] = theta[N]
-#	phi[:N+1,N+1:] = np.pi - phi[:N+1,:N][:,::-1]
-#	phi[:N,N] = np.pi/2
-#	phi[N+1:] = 2*np.pi - phi[:N][::-1]
-#	phi[N,N:] = 0
-#	theta[theta==-1] = np.nan
-#	theta = np.ma.masked_invalid(theta)
-#	phi = phi[::-1].T
-#	if (theta.mask.sum() == 0) : 
-#		return np.array([theta.data[:N0,:N0], phi[:N0,:N0]])
-#	else : 
-#		return [theta[:N0,:N0], phi[:N0,:N0]]
+def ThetaPhiMatrix( fieldofview, pixelnumber, project=False ) : 
+	'''
+	fieldofview:
+		total field of view (from left to rignt) in rad.
+
+	pixelnumber:
+		pixelnumber must be odd.
+		theta and phi matrix shape = (pixelnumber, pixelnumber)
+
+	project:
+		True: Spherical projects to flat.
+		False: Spherical angle.
+
+	# At the center (pixelnumber/2, pixelnumber/2), theta = 0
+	# phi = 0 at the [pixelnumber/2:, pixelnumber/2], it means:
+			-x
+		-y		+y
+			+x
+
+	return:
+		[theta, phi] in rad.
+	'''
+	# pixelnumber must be odd
+	if (project is not False) : 
+		if (fieldofview > np.pi) : fieldofview = np.pi
+	N0 = pixelnumber = int(pixelnumber)
+	if (pixelnumber%2 == 0) : pixelnumber = pixelnumber + 1
+	N = pixelnumber / 2
+	# Matrix
+	theta = np.zeros([pixelnumber, pixelnumber]) -1
+	phi = theta.copy()
+	# Length of each pixel
+	if (project is False) : 
+		dx = fieldofview / (pixelnumber-1)
+	else : 
+		dx = np.sin(fieldofview/2.) / N
+	for i in range(N+1) : 
+		for j in range(N) : 
+			if (project is False) : 
+				theta[i,j] = dx*((N-i)**2+(N-j)**2)**0.5 
+			else : 
+				d = dx*((N-i)**2+(N-j)**2)**0.5
+				if (abs(d) > 1) : pass
+				else : theta[i,j] = np.arcsin(d)
+			phi[i,j] = np.pi - np.arctan(1.*(N-i)/(N-j))
+	theta[N+1:] = theta[:N][::-1]
+	theta[:,N+1:] = theta[:,:N][:,::-1]
+	theta[N,N] = 0
+	theta[:,N] = theta[N]
+	phi[:N+1,N+1:] = np.pi - phi[:N+1,:N][:,::-1]
+	phi[:N,N] = np.pi/2
+	phi[N+1:] = 2*np.pi - phi[:N][::-1]
+	phi[N,N:] = 0
+	theta[theta==-1] = np.nan
+	theta = np.ma.masked_invalid(theta)
+	phi = phi[::-1].T
+	if (theta.mask.sum() == 0) : 
+		return np.array([theta.data[:N0,:N0], phi[:N0,:N0]])
+	else : 
+		return [theta[:N0,:N0], phi[:N0,:N0]]
 
 
 def BeamModel( beamtype, antennatype, diameter, frequency, fovORtpm, pixelnumber, project=False, power=True, dim='2D', kbeam=1.03 ) :
@@ -2033,6 +2854,63 @@ def SolidAngle( theta_0='' ) :
 	if (theta_0 == '') : return k0
 	else : return k0 * theta_0**2
 
+
+def Jy2K( S, DorResol, freq=None, ksd=None, kind=None ) : 
+	'''
+	Convert flux density S(Jy) to brightness temperature T(K) with Gaussian Beam with FWHM resolution or Rayleigh_criterion resolution (base on the DorResol).
+
+	S:
+		the flux density in Jy at this frequency (S will change with frequency). 1Jy = 1e-26 w/m^2/Hz
+
+	DorResol:
+		Diameter or resolution.
+
+	freq:
+		If DorResolu is set to be Diameter, you don't need to set the freq.
+		But if DorResolu is set to be resolution, you must also set the freq in MHz.
+
+	ksd:
+		Beam of antenna maybe not a perfect Gaussian beam.
+		sigma = lambda/D /ksd, ksd=1.962~2.286
+		Default, ksd=None, 1.03
+		For real case, ksd=2
+
+	kind: 
+		Just for DorResolu is Diameter.
+		We will use D to calculate the solid angle. But for the solid angle, use "FWHM" or "Rayleigh_criterion" ?
+
+	return T in K.
+
+	* S: actually is Jy/beam, because here, we assume the size of the image of the source is equal to the FHWM of Gaussian beam.
+
+	* \Omega = 1.1244*FWHM^2 is very fit by NVSS paper!! Not the \Omega = pi/4 * FWHM^2
+	* The result of ksd=None, kind=None is also fit by that of Planck 2015 paper.
+
+	**** 2D flux to K
+	Flux2D at any FWHM.
+	beam = BeamModel('gaussian', 'dish', D, freq, fov, N)[0] 
+	beam = beam / beam.max()  # center is 1
+	Then: 
+		T2D = Jy2K(Flux2D, D)
+		T2D = Convolve(T2D, beam)  # beam, not beam/beam.sum()
+	Or:
+		Flux2D = Convolve(Flux2D, beam)
+		T2D = Jy2K(Flux2D, D)
+		(the result is the same)
+	'''
+	k = 3.2205e-4
+	if (freq is not None) : 
+		T = (300./freq)**2 * k * S / DorResol**2
+	elif (freq is None) : 
+		if ksd is None : ksd = (8*np.log(2))**0.5 /1.03
+		#	if (kind=='fwhm' or kind=='FWHM') : k1 = 1.03
+		#	elif (kind == 'Rayleigh_criterion') : k1 = 1.22
+		#	else : raise Exception(efn()+'name must = "FWHM" or "Rayleigh_criterion"')
+	#	if (not(1.962 <= ksd <= 2.287)) : raise Exception(efn()+'ksd='+str(ksd)+' is out of range [1.962 ~ 2.287]')
+		T = k * S * DorResol**2 * ksd**2 / (8*np.log(2))
+#	else : raise Exception(efn()+'Both kind="" and freq="" is not allowed')
+	return T
+		
 
 ##################################################
 ##################################################
@@ -2216,133 +3094,6 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, applr=Fal
 		sa = ArrayAxis(sa, 0, axis, 'move')
 		return [array, sa]
 	else : return array
-
-
-
-
-
-def SmoothWeight( per, times, plv=False ) : 
-	if (per%2==0 and plv) : 
-		print 'Warning: SmoothWeight(), per must be odd, reset per='+str(per)+' to per='+str(per+1)
-		per +=1
-	a0 = np.ones(per)
-	#----- Method 1 -----
-#	for n in xrange(1, times+1) : 
-#		if (times == 1) : break
-#		if (n == 1) : continue
-#		a = np.zeros([per, 1+2*n])
-#		for j in xrange(len(a)) : 
-#			a[j,j:j+len(a0)] = a0
-#		a0 = a.sum(0)
-#	weight = a0 / (1.*per)**times
-	#----- Method 1 END -----
-	#----- Method 2 -----
-	for n in xrange(1, times+1) : 
-		if (times == 1) : break
-		if (n == 1) : continue
-		a = np.zeros([per, 1+2*n*(per/2)])
-		for j in xrange(len(a)) : 
-			a[j,j:j+len(a0)] = a0
-		a0 = a.sum(0) /per
-	weight = a0/per  #@ Remember this !!!
-	#----- Method 2 END -----
-	return weight
-
-
-def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False ) : 
-	'''
-	Smooth/Average/Mean array along one axis.
-	We can also use spsn.convolve() to do this, but spsn.convolve() will cost much more memory and time, so, the function written here is the best and fastest.
-
-	Weighted average, sigma will reduce to 1/sqrt{per**times}
-	Equivalent to average over per**times
-
-	axis:
-		array will be smoothed/averaged along which axis.
-
-	per:
-		How many bins/elements to average.
-
-	times:
-		How many times to smooth.
-		For random noise, times=4 is OK
-		Note that this parameter is just for reduceshape=False
-
-	sigma:
-		False, True, int, np.array
-		If False, don't return the error.
-		If True, calculate the error from input array.
-		If int or np.array, use this sigma to calculate the error of the result.
-
-	reduceshape:
-		False, return.shape = array.shape
-		True, return.shape < array.shape
-
-	# Also, we can use Convolve to do it:
-	#    w = array*0
-	#    w = w[len(array)/2-per/2:len(array)/2+per/2+1] = 1
-	#    return Convolve(array, w/w.sum())
-
-	Note that:
-		Wide of 2 windows: w1 < w2
-		a1  = Convolve(a,  w1)
-		a2  = Convolve(a,  w2)
-		a12 = Convolve(a1, w2)
-		=> a12 = Smooth(a2)
-		But the beam sizes of the result maps are similar (roughly the same), Beamsize(a12) >= Beamsize(a2).
-	'''
-	if (per%2 == 0) : per +=1
-	if (per<=1 or times<=0) : return array
-	array = np.array(array)
-	per, atype, shape = int(round(per)), array.dtype, array.shape
-	if (axis < 0) : axis = len(shape) + axis
-	if (axis >= len(shape)) : Raise(Exception, 'axis='+str(axis)+', array.shape='+str(shape)+', axis out of array.shape')
-	# Move axis to axis=0
-	array = ArrayAxis(array, axis, 0, 'move')
-	shape = array.shape
-	#--------------------------------------------------
-	if (not reduceshape) : 
-		weight = SmoothWeight( per, times )
-		lw = len(weight)
-		shapew = npfmt(shape)
-		shapew[0] = lw
-		shapew[1:] = 1
-		weight = weight.reshape(shapew)
-		#--------------------------------------------------
-		dnwa1 = None
-		if (len(array) < lw) : 
-			dnwa1 = (lw-len(array))/2
-			dnwa2 = lw-len(array) - dnwa1
-			if (dnwa1 > 0) : a1 = np.concatenate([array[:1]  for i in xrange(dnwa1)])
-			else : a1 = []
-			a2 = np.concatenate([array[-1:] for i in xrange(dnwa2)])
-			array = np.concatenate([a1, array, a2])
-			a1 = a2 = 0 #@
-		#--------------------------------------------------
-		b = array*0
-		for i in xrange(len(array)) : 
-			if (i < lw/2) : 
-				da = np.concatenate([array[:1] for j in xrange(lw/2-i)])
-				ai = np.concatenate([da, array[:lw/2+1+i]])
-			elif (i >= len(array)-lw/2) : 
-				dn = lw/2 - (len(array)-1 - i)
-				da = np.concatenate([array[-1:] for j in xrange(dn)])
-				ai = np.concatenate([array[i-lw/2:], da])
-			else : ai = array[i-lw/2:i+lw/2+1]
-			b[i] = (ai * weight).sum(0)
-		if (dnwa1 is not None) : b = b[dnwa1:-dnwa2]
-		ai = w = 0 #@
-	#--------------------------------------------------
-	else : 
-		if (times == 1) : Npix = len(array)/per
-		else : Npix = times
-		n = np.linspace(0, len(array), Npix+1).astype(int)
-		b = np.zeros((Npix-1,) + shape[1:])
-		for i in xrange(len(n)-1) : 
-			b[i] = array[n[i]:n[i+1]].mean(0)
-	#--------------------------------------------------
-	b = ArrayAxis(b, 0, axis, 'move')
-	return b
 
 
 ##################################################
@@ -3197,52 +3948,60 @@ def Sigma( a, axis=None ) :
 ##################################################
 
 
-class IndexConvert( object ) : 
+def IndexConvert( index1, shape1, shape2=None ) : 
+	'''
+	A1.shape = shape1
+	A2 = A1.reshape( shape2 ), number of elements is the same
+	A1[index1] corresponds to A2[??]
 
+	return the index2
 
-	def N2OneD( self, indexnd, shapend ) : 
-		'''
-		indexnd:
-			list : [(n1,n2,n3), (n4,n5,n6), ...]
-			tuple: ((n1,n2,n3), (n4,n5,n6), ...)
-			np.ndarray: np.array([n1,n2,n3],
-			                     [n4,n5,n6],
-			                     [........])
-		'''
-		indexnd = npfmt(indexnd)
-		shapendprod = np.cumprod(shapend[::-1])[:-1][::-1]
-		shapendprod = np.concatenate([shapendprod, [1]])[None,:]
-		indexnd *= shapendprod
-		return indexnd.sum(1)
+	index1:
+		type(index1) == tuple(,)  or  [tuple, tuple, tuple, ...] or np.ndarray which each row is one element's index
 
-
-	def One2ND( self, index1d, shapend, retntype='nparray' ) : 
-		'''
-		retntype:
-			'nparray'/numpy.ndarray
-			'list'/list
-		NOTE THAT don't return bool because of no order!
-		'''
-		index1d = npfmt(index1d)
-		index1d0 = index1d.copy()
-		shapendprod = np.cumprod(shapend[::-1])[:-1][::-1]
-		shapendprod = np.concatenate([shapendprod, [1]])
-		indexnd = []
-		for i in xrange(len(shapendprod)) : 
-			n1 = (index1d / shapendprod[i])
-			index1d = (index1d % shapendprod[i])
-			indexnd.append( n1 )
-		retn = npfmt(indexnd).T
-		if (retntype in ['list', list]) : 
-			retn = list(retn)
-			for i in xrange(len(retn)) : retn[i] = tuple(retn[i])
-		return retn
-
-
-	def N2ND( self, indexndin, shapendin, shapendout, retntype='nparray' ) : 
-		retn = self.N2OneD(indexndin, shapendin)
-		retn = self.One2ND(retn, shapendout, retntype)
-		return retn
+	shape2:
+		if shape2==None: 
+			  if index is of 1D array, then Flat2ND()
+			elif index is of ND array, then ND2Flat()
+		else :
+			index for shape1, convert to shape2
+	'''
+	def ND2Flat( index, shape ) : 
+		if (shape.size == 1) : return index
+		s = np.ones([len(shape),], int)
+		for i in range(len(s)-1) : s[i] = shape[i+1:].prod()
+		shape = s
+		result = (index*shape).sum(1) # ndarray
+		return result
+	
+	def Flat2ND( index, shape ) : 
+		if (shape.size == 1) : return index
+		s = np.ones([len(shape),], int)
+		for i in range(len(s)-1) : s[i] = shape[i+1:].prod()
+		shape = s
+		res = np.ones([len(index), len(shape)], int)
+		for i in range(len(shape)) : 
+			res[:,i] = index / shape[i]
+			index = index % shape[i]
+		result = []
+		for i in range(len(res)) : result = result + [tuple(res[i])]
+		return result
+	
+	shape1, index1 = npfmt(shape1), npfmt(index1)
+	s1, ND = index1.shape, 0
+	if (len(s1) == 1) : ND = 1
+	elif (len(s1)==2 and s1[1]==1) : ND = 1
+	if (shape2 is not None) : 
+		if (shape1.prod() != shape2.prod()) : 
+			Raise(Exception, 'total number of elements must not change, shape1.prod() != shape2.prod()')
+	if (shape2 is None) : 
+		if (ND == 1) : index1 = Flat2ND(index1, shape1)
+		else : index1 = ND2Flat(index1, shape1)
+	else : 
+		shape2 = npfmt(shape2)
+		index1 = ND2Flat(index1, shape1)
+		index1 = Flat2ND(index1, shape2)
+	return index1
 
 
 ##################################################
@@ -3478,7 +4237,7 @@ def arcsinh2lg( value, y=None ) :
 ##################################################
 
 
-def HealpixHeader( nside, ordering, coordsys, freq=None, unit=None, beamsize=None ) : 
+def HealpixHeader(nside, ordering, coordsys, freq=None, unit=None, beamsize=None ) : 
 	'''
 	nside: 2**n
 	ordering: 'RING', 'NESTED'
@@ -3487,7 +4246,7 @@ def HealpixHeader( nside, ordering, coordsys, freq=None, unit=None, beamsize=Non
 	unit: Unit of the healpix map pixel value
 	beamsize: Observation FWHM of the healpix map in arcmin
 	'''
-	key=['PIXTYPE', 'DATECREA', 'ORDERING', 'NSIDE', 'COORDSYS']
+	key = ['PIXTYPE', 'DATECREA', 'ORDERING', 'NSIDE', 'COORDSYS']
 	value = ['HEALPIX', Time()[0], ordering.upper(), nside, coordsys.upper()]
 	comment = ['HEALPIX pixelisation', 'Creation date of this FITS', 'Pixel ordering scheme, RING or NESTED', 'Healpix resolution parameter', 'Coordinate system, EQUATORIAL or GALACTIC']
 	if (freq is not None) : 
@@ -3508,155 +4267,351 @@ def HealpixHeader( nside, ordering, coordsys, freq=None, unit=None, beamsize=Non
 
 # keyword must <= 8 characters
 
+def CheckFitsOutnameFile( outname ) : 
+	if( os.path.exists(outname) ) : 
+		os.system('mv '+outname+' '+outname[:-5]+'_old.fits')
 
-class Array2Fits( object ) : 
-	dtype = 'class:'+sys._getframe().f_code.co_name
+def CheckFitsOutnameHeader( lenArraylist, outname, key, value, comment, columntag=None ) : 
+	'''
+	'''
+	# check outname
+	try : 
+		if (outname[-5:] != '.fits') :
+			if (outname[-5:] == '.FITS') : outname = outname[:-5]+'.fits'
+			else : outname = outname+'.fits'
+	except : 
+		namep = (sys._getframe(1).f_code.co_name)[6:]
+		if (namep == '') : namep = 'Noname'
+		outname = namep+'_'+Time()[2]+'.fits'
+	CheckFitsOutnameFile(outname)
+	#--------------------------------------------------
 
+	try : 
+		# check key
+		if (key is None) : value, comment = None, None
+		#--------------------------------------------------
+		elif (Type(key) == str) : 
+			if (comment is None) : pass
+			elif (Type(comment) != str) : 
+				try : comment = comment[0]
+				except : 
+					try : comment = str(comment)
+					except : comment = None
+			key = [[key] for i in range(lenArraylist)]
+			value = [[value] for i in range(lenArraylist)]
+			if (comment is not None) : comment = [[comment] for i in range(lenArraylist)]
+		# For all arraylist, use the same key, value, comment, when type(key)==str
+		#--------------------------------------------------
+		# key may be one list, or list of list
+		elif (Type(key) == list) : 
+			if (Type(value) != list) : 
+				try : value = list(value)
+				except : 
+					try : value = list(npfmt(value))
+					except : value = [value for i in range(len(key))]
+			if (comment is not None) : 
+				if (Type(comment) != list) : 
+					if (Type(comment) == str) : 
+						comment = [comment for i in range(len(key))]
+					else : comment = None
+			if (len(key) != len(value)) : 
+				value = value[:len(key)]
+				if (len(key) != len(value)) : 
+					value += ['' for i in range(len(key)-len(value))]
+			if (comment is not None) : 
+				if (len(key) != len(comment)) : 
+					comment = comment[:len(key)]
+					if (len(key) != len(comment)) : 
+						comment += ['' for i in range(len(key)-len(comment))]
+			#--------------------------------------------------
+			if (Type(key[0]) == str) : 
+				key = [key for i in range(lenArraylist)]
+				value = [value for i in range(lenArraylist)]
+				if (comment is not None) : comment = [comment for i in range(lenArraylist)]
+			elif (Type(key[0]) == list) : 
+				if (len(key) != lenArraylist) : 
+					key = key[:lenArraylist]
+					if (len(key) != lenArraylist) : 
+						key += [None for i in range(lenArraylist-len(key))]
+				for i in range(len(key)) : 
+					if (key[i] is None) : continue
+					if (Type(value[i]) != list) : 
+						value[i] = [value[i] for j in range(len(key[i]))]
+					if (comment is not None) : 
+						if (Type(comment[i]) != list) : 
+							comment[i] = [comment[i] for j in range(len(key[i]))]
+					if (len(key[i]) != len(value[i])) : 
+						value[i] = value[i][:len(key)]
+						if (len(key[i]) != len(value[i])) : 
+							value[i] += ['' for i in range(len(key[i])-len(value[i]))]
+						if (comment is not None) : 
+							if (len(key) != len(comment[i])) : 
+								comment[i] = comment[i][:len(key)]
+								if (len(key) != len(comment[i])) : 
+									comment[i] += ['' for i in range(len(key)-len(comment[i]))]
+		#--------------------------------------------------
+	except : key, value, comment = None, None, None
 
-	def __init__( self ) : 
-		self.hdulist = pyfits.HDUList()
-
-
-	def Outname( self, outname=None ) : 
-		if (outname is not None) : 
-			outname = str(outname)
-			if (outname[-5:] not in ['.fits', '.FITS']) : 
-				outname += '.fits'
-			self.outname = outname
+	# Check columntag
+	if (columntag not in [None, False]) : 
+		if (columntag != True) : 
+			if (Type(columntag) == str) : columntag = [columntag]
+			elif (Type(columntag) != list) : 
+				try : columntag = list(columntag)
+				except : 
+					try : columntag = list(npfmt(columntag, str))
+					except : columntag = True
+		if (columntag == True) : columntag = ['col_'+str(i) for i in range(lenArraylist)]
 		else : 
-			outname = self.outname
-			if( os.path.exists(outname) ) : 
-				os.system('mv '+outname+' '+outname[:-5]+'_old.fits')
-			if( os.path.exists(outname[:-5]+'.FITS') ) : 
-				os.system('mv '+outname[:-5]+'.FITS '+outname[:-5]+'_old.fits')
+			if (len(columntag) != lenArraylist) : 
+				columntag = columntag[:lenArraylist]
+				if (len(columntag) != lenArraylist) : 
+					columntag += ['col_'+str(i) for i in range(len(columntag), lenArraylist)]
+		return [outname, key, value, comment, columntag]
+	else : return [outname, key, value, comment]
 
 
-	def Header( self, keys, values, comments ) : 
-		''' return pyfits.header.Header '''
-		if (values is not None) : 
-			if (not len(keys)==len(values)) : Raise(Exception, 'len(keys)='+str(len(keys))+', len(values)='+str(len(values)))
-			if (comments is None) : comments = ['' for i in xrange(len(keys))]
-			elif (len(comments) < len(keys)) : 
-				comments += ['' for i in xrange(len(keys)-len(comments))]
-		elif (keys is not None) : 
-			keys, values, comments = keys.keys(). keys.values(), list(keys.comments)
-		else : keys, values, comments = [], [], []
-		return [keys, values, comments]
-		
-
-	def Bit( self, bit=None, array=None ) : 
-		''' bit: 32 or 64 or None '''
-		if (bit is None) : bit = 64
-		elif (bit not in [16, 32, 64]) : bit = 64
-		self.bit = int(round(bit))
-		if (array is None) : return
-		#--------------------------------------------------
-		adtype = npfmt(array).dtype
-		if (adtype.name[:7] == 'complex') : 
-			bit = 2*self.bit
-			if (bit == 32) : bit = 64
-			dtype = np.dtype('complex'+str(bit))
-		elif (adtype.name[:3] == 'int') : 
-			dtype = np.dtype('int'+str(self.bit))
-		elif (adtype.name[:5] == 'float') : 
-			bit = self.bit
-			if (bit == 16) : bit = 32
-			dtype = np.dtype('float'+str(bit))
-		else : dtype = adtype
-		return dtype
+#def Array2FitsPrimary( primary, outname='', key='', keyvalue='', comment='' ) :
+#	'''
+#	* primary is an any dimension "real" array (not complex).
+#
+#	* This function will save a FITS file just with PrimaryHDU.
+#	'''
+#	outname, key, keyvalue, comment = CheckFitsOutnameKeyComment(outname, key, keyvalue, comment)
+#	hdu = pyfits.PrimaryHDU( primary )
+##	hdulist = pyfits.HDUList( [hdu] )
+#	# set header
+#	hdr = hdu.header
+#	for i in range(len(key)) : 
+#		if (comment == '') : hdr.set(key[i], keyvalue[i])
+#		else : hdr.set(key[i], keyvalue[i], comment[i])
+#	hdu.writeto( outname )
+#	print outname+'  -->  saved.   Array2FitsPrimary()'
 
 
-	def ImageHDU( self, array, keys=None, values=None, comments=None ) : 
-		'''
-		(1) keys==None, values==None, comments==None: 
-			don't add header
-		(2) keys!=None, values!=None, comments!=None: 
-			All keys, values, comments must be list, and have the same size
-		(3) keys!=None, values!=None, comments==None: 
-			Both keys and values must be list, and have the same size
-		(4) keys!=None, values==None, comments==None: 
-			type(keys)==pyfits.header.Header, not list
-		'''
-		dtype = self.Bit(self.bit, array)
-		array = npfmt(array).astype(dtype)
-		imagehdu = pyfits.ImageHDU( array )
-		keys, values, comments = self.Header(keys, values, comments)
-		hdr = imagehdu.header
-		for i in xrange(len(keys)) : 
-			hdr[keys[i]] = (values[i], comments[i])
-		self.hdulist.append(imagehdu)
+#def Array2FitsImageExtension( Arraylist, outname='', key='', keyvalue='', comment='' ) : 
+
+def Array2FitsImage( Arraylist, outname=None, key=None, keyvalue=None, comment=None ) : 
+	'''
+	Arraylist:
+		Can be a single np.ndarray, or list[] of array.
+		If Arraylist == np.ndarray, means a single array, it will save to PrimaryHDU.
+		Else, Arraylist is a list[] of image, and will save from PrimaryHDU to ImageHDU (also use PrimaryHDU).
+
+		Nont that: 
+			Arraylist can not be
+				Array2FitsImage( [1,2,3], 'test.fits' )
+			If so, will raise error "IOError: Header missing END card." when pyfits.open() it.
+			You must convert to
+					Array2FitsImage( np.array([1,2,3]), 'test.fits' )
+			OR		Array2FitsImage(         [[1,2,3]], 'test.fits' )
 
 
-	def TableHDU( self, table, keys=None, values=None, comments=None, colname=None ) : 
-		'''
-		table:
-			(1) list or tuple:
-				All table[i] must 1D and have the same size
-			(2) 1D np.ndarray:
-				table = [table]
-			(3) 2D np.ndarray:
-				table[:,i] is the column of the table
+	key:
+		len(key) must == len(Arraylist).
+		But for each key[i], number of keys is not limited.
 
-		colname:
-			Name of each column, len(colname)==the number of columns
+	keyvalue:
+		list, can be ['Astro', 2, 'Brightness', '512']
 
-		keys, values, comments:
-			See self.ImageHDU()
-		'''
-		istype = IsType()
-		if (istype.isnparray(table)) : 
-			if (len(table.shape) > 2) : Raise(Exception, 'table.shape='+str(table.shape)+' is not 1D or 2D')
-			dtype = self.Bit(self.bit, table)
-			table = table.astype(dtype)
-			if (len(table.shape) == 1) : table = [table]
-			else : table = table.T
-		elif (istype.islist(table) or istype.istuple(table)) : 
-			table = list(table)
-			colsize = 0
-			for i in xrange(len(table)) : 
-				dtype = self.Bit(self.bit, table[i])
-				table[i] = npfmt(table).flatten().astype(dtype)
-				if (table[i].size > colsize): colsize = table[i].size
-			for i in xrange(len(table)) : 
-				if (table[i].size < colsize) : 
-					table[i] = np.concatenate([table[i], [np.nan for j in xrange(colsize-table[i].size)]])
-		else : Raise(Exception, 'type(table)='+str(type(table))+' not in [list, tuple, numpy.ndarray]')
-		#--------------------------------------------------
-		if (colname is None) : colname = 'col'
-		if (istype.isstr(colname)) : 
-			colname =[colname+'_'+str(i) for i in xrange(len(table))]
-		elif (istype.islist(colname) or istype.istuple(colname) or istype.isnparray(colname)) : 
-			colname = list(colname)
-			if (len(colname) < len(table)) : 
-				colname += ['col_'+str(i) for i in xrange(len(colname), len(table))]
-		else : Raise(Exception, 'type(colname)='+str(type(colname))+' not in [list, tuple, numpy.ndarray]')
-		#--------------------------------------------------
-		cols = []
-		for i in xrange(len(table)) : 
+	FITS will save the dtype of the input array.
+	'''
+	if (type(Arraylist) == np.ndarray) : Arraylist = [Arraylist]
+	outname, key, keyvalue, comment = CheckFitsOutnameHeader(len(Arraylist), outname, key, keyvalue, comment)
+	hdulist = pyfits.HDUList()
+#	if (primary == None) : hdulist.append(pyfits.PrimaryHDU())
+#	else : hdulist.append(pyfits.PrimaryHDU(primary))
+#	hdulist.append(pyfits.PrimaryHDU(primary))
+	for i in range(len(Arraylist)) : 
+		ai = Arraylist[i]
+	#	if (ai.dtype.name == 'float16') : ai = np.float32(ai)
+		hdu = pyfits.ImageHDU( ai )
+		# set header
+		if (key is not None) :
+			hdr = hdu.header
+			for j in range(len(key[i])) : 
+				if (comment is None) : comi = ''
+				try : hdr.set(key[i][j], keyvalue[i][j], comi)
+				except : pass
+		hdulist.append( hdu )
+	hdulist.writeto( outname )
+	print outname+'  -->  saved.   Array2FitsImage()'
+
+
+def Array2FitsTable( tablecolumn, outname=None, columntag=None, Ntbhdu=None, key=None, value=None, comment=None, TableHDU=False ) : 
+	'''
+	tablecolumn:
+		=list, then each element of list is one column of the table
+		=2D np.array, then each column of array[:,i] is the column of table
+
+	Ntbhdu: 
+		How many TableHDU will be created to save the data?
+		Ntbhdu=None means Ntbhdu=len(tablecolumn) and save one column to one TableHDU.
+
+	columntag:
+		Tag(name) of each column, must be list.
+
+	TableHDU:
+		False: XTENSION= 'BINTABLE' /binary table extension
+		True:  XTENSION= 'TABLE   ' /ASCII table extension
+
+	FITS will save the dtype of the input table.
+	'''
+	# Check tablecolumn
+	if (Type(tablecolumn) == list) : ncolu = len(tablecolumn)
+	else : 
+		tablecolumn = npfmt(tablecolumn)
+		shape = tablecolumn.shape
+		if (len(shape)==1) : tablecolumn = [tablecolumn]
+		elif (len(shape)==2 and (1 in shape)) : tablecolumn = [tablecolumn.flatten()]
+		else : tablecolumn = tablecolumn.T
+		ncolu = len(tablecolumn)
+	#--------------------------------------------------
+
+	# Ntbhdu, Ncoleach
+	if (Ntbhdu is None or Ntbhdu>=ncolu or Ntbhdu<1) : 
+		Ntbhdu, Ncoleach = ncolu, 1
+	else : 
+		Ncoleach = 1.*ncolu / Ntbhdu
+		if (Ncoleach != int(Ncoleach)) : Ncoleach=int(Ncoleach)+1
+		else : Ncoleach = int(Ncoleach)
+	#--------------------------------------------------
+
+	# outname, key, value, comment
+	outname, key, value, comment, columntag = CheckFitsOutnameHeader(Ntbhdu, outname, key, value, comment, columntag)
+
+	n1632 = 0
+	hdulist = pyfits.HDUList()
+	for j in range(Ntbhdu) : 	
+		cols, notag = [], 1
+		# columntag
+		if (columntag is None or columntag == '') : 
+			tagj = ['column_'+str(i+1) for i in range(Ncoleach)]
+		else : tagj = columntag[j*Ncoleach:(j+1)*Ncoleach]
+
+		# Add np.nan
+		Na = -1
+		for i in range(Ncoleach) : 
+			i = i + j*Ncoleach
+			if (i >= ncolu) : break
+			if (len(tablecolumn[i]) > Na) : Na = len(tablecolumn[i])
+		for i in range(Ncoleach) : 
+			i = i + j*Ncoleach
+			if (i >= ncolu) : break
+			Len = len(tablecolumn[i])
+			if ( Len < Na) : 
+				dty = npfmt(tablecolumn[i][0]).dtype
+				tablecolumn[i] = npfmt(np.append(tablecolumn[i], [np.nan for k in range(Na-Len)]), dty)
+
+		for i in range(Ncoleach) : 
+			i = i + j*Ncoleach
+			if (i >= ncolu) : break
+			tagname = tagj[i-j*Ncoleach]
+			if (tagname=='' or tagname is None) : 
+				tagname = 'Notag_'+str(notag)
+				notag = notag + 1
+	
 			# pyfits.Column
-			fmt = table[i].dtype.name
-			if   (fmt == 'int16')     : fmt = 'I'
-			elif (fmt == 'int32')     : fmt = 'J'
-			elif (fmt == 'int64')     : fmt = 'K'
-			elif (fmt == 'float32')   : fmt = 'E'
-			elif (fmt == 'float64')   : fmt = 'D'
+			fmt = npfmt(tablecolumn[i][0]).dtype.name
+			if   (fmt == 'float32') : fmt = 'E'
+			elif (fmt == 'float64') : fmt = 'D'
+			elif (fmt == 'float16') : 
+				if (n1632 == 0) : 
+					print '  *** Array2FitsTable(), save float16 to float32'
+				fmt, n1632 = 'E', n1632+1
+			elif (fmt == 'int16') : fmt = 'I'
+			elif (fmt == 'int32') : fmt = 'J'
+			elif (fmt == 'int64') : fmt = 'K'
 			elif (fmt == 'complex32') : fmt = 'C'
 			elif (fmt == 'complex64') : fmt = 'M'
-			elif (fmt[:6] =='string') : fmt = 'A'+fmt[6:]
-			cols.append( pyfits.Column(name=colname[i], format=fmt, array=table[i]) )
-		#--------------------------------------------------
-		tablehdu = pyfits.BinTableHDU.from_columns(cols)
-		keys, values, comments = self.Header(keys, values, comments)
-		hdr = tablehdu.header
-		for i in xrange(len(keys)) : 
-			hdr[keys[i]] = (values[i], comments[i])
-		self.hdulist.append(tablehdu)
+			elif (fmt[:6] == 'string') : fmt = 'A'+fmt[6:]
+			cols = cols + [pyfits.Column(name=tagname, format=fmt, array=tablecolumn[i])]
+
+	#	tbhdu = pyfits.new_table(cols)
+		if (TableHDU is True) : 
+			tbhdu = pyfits.TableHDU.from_columns(cols)
+		else : 
+			tbhdu = pyfits.BinTableHDU.from_columns(cols)
+		# set header
+		hdr = tbhdu.header
+		if (key is not None) : 
+			for i in range(len(key[j])) : 
+				if (comment is None) : comi = ''
+				try : hdr.set(key[j][i], value[j][i], comi)
+				except : pass
+		hdulist.append( tbhdu )
+	hdulist.writeto( outname )
+	print outname+'  -->  saved.   Array2FitsTable()'
 
 
-	def Save( self ) : 
-		self.Outname()
-		self.hdulist.writeto(self.outname)
-		print self.outname+'  -->  saved'
+def Array2FitsImageTable( imagearray, tablecolumn, outname='', columntag='', key='', keyvalue='', comment='', imagetype='primary') : 
+	'''
+	First, save all image, then save table.
+
+	imagearray:
+		can be one array, save to PrimaryHDU
+		list of arraies, save from PrimaryHDU to ImageHDU
+	'''
+	outname, key, keyvalue, comment = CheckFitsOutnameKeyComment(outname, key, keyvalue, comment)
+	# Primary
+	hdu = pyfits.PrimaryHDU( imagearray )
+#	hdulist = pyfits.HDUList( [hdu] )
+	# set header
+	hdr = hdu.header
+	for i in range(len(key)) : 
+		if (comment == '') : hdr.set(key[i], keyvalue[i])
+		else : hdr.set(key[i], keyvalue[i], comment[i])
+	# table
+	if (type(tablecolumn) == list) : 
+		ncolu = len(tablecolumn)
+		tablecolumn = np.array(tablecolumn).T
+	elif (type(tablecolumn) == np.ndarray) : ncolu = len(tablecolumn[0])
+	else : Error('tablecolumn is not list nor np.ndarray')
+	if (columntag == '') : 
+		columntag = []
+		for i in range(ncolu) : columntag = columntag+['column'+str(i+1)]
+	else : 
+		if (type(columntag) != list) : Error('columntag must be a "list"')
+		if (len(columntag) != ncolu) : Error('len(columntag) != len(tablecolumn)')
+	cols = []
+	for i in range(ncolu) : 
+		cols = cols + [pyfits.Column(name=columntag[i], format='D', array=tablecolumn[:,i])]
+#	tbhdu = pyfits.new_table(cols)
+	tbhdu = pyfits.TableHDU.from_columns(cols)
+	# set header
+	hdr = tbhdu.header
+	for i in range(len(key)) : 
+		if (comment == '') : hdr.set(key[i], keyvalue[i])
+		else : hdr.set(key[i], keyvalue[i], comment[i])
+	hdulist = pyfits.HDUList([hdu, tbhdu])
+	hdulist.writeto( outname )
+	print outname+'  -->  saved.   Array2FitsImagePrimaryTable()'
+
+
+def Array2Fits( primary=None, imagelist=None, tablelist=None, outname='', key='', keyvalue='', comment='', tabletag='' ) : 
+	'''
+	Use this function!
+	'''
+	if (primary==None and imagelist==None and tablelist==None) :
+		outname = CheckFitsOutnameKeyComment(outname)[0]
+		hdulist = pyfits.HDUList()
+		hdulist.append(pyfits.PrimaryHDU())
+		hdulist.append(pyfits.ImageHDU())
+		hdulist.append(pyfits.TableHDU.from_columns([pyfits.Column(format='I')]))
+		hdulist.writeto(outname)
+		print outname+'  -->  saved.   Array2Fits()'
+	elif (primary!=None and imagelist==None and tablelist==None) :
+ 		Array2FitsPrimary( primary, outname, key, keyvalue, comment )
+	elif (primary==None and imagelist!=None and tablelist==None) :
+		Array2FitsImageExtension( imagelist, outname, key, keyvalue, comment )
+	elif (primary==None and imagelist==None and tablelist!=None) :
+		Array2FitsTable( tablelist, outname, tabletag, key, keyvalue, comment )
+#	elif (primary!=None and imagelist!=None and tablelist==None) :
+#		Array2FitsImageExtension( imagelist, outname, key, keyvalue, comment, primary )
+	elif (primary!=None and imagelist==None and tablelist!=None) :
+		Array2FitsImageTable( primary, tablelist, outname, tabletag, key, keyvalue, comment )
+	elif (primary==None and imagelist!=None and tablelist!=None) :
+		print "No corresponding function()"
 
 
 ##################################################
@@ -3689,6 +4644,44 @@ def SignDec( inname ) :
 ##################################################
 ##################################################
 
+
+def mkdir( path=None ) : 
+	'''
+	If path doesn't exist, mkdir it
+	path: str of list of str
+
+	For example:
+		mkdir('ab/cd/ef/gh/ij/')
+		will do: mkdir('ab/'), mkdir('ab/cd/'), mkdir('ab/cd/ef/'), mkdir('ab/cd/ef/gh/'), mkdir('ab/cd/ef/gh/ij/')
+	'''
+	if (path is None) : return
+	if (Type(path) == str) : path, islist = [path], False
+	else : path, islist = list(path), True
+	path = DirStr(path, True)
+	for i in xrange(len(path)) : 
+		if (path[i] in ['', './', '../']) : pass
+		else : 
+			psplit = path[i][:-1].split('/')
+			pfont = ''
+			for j in xrange(len(psplit)) : 
+				pfont = pfont + psplit[j] + '/'
+				if (not os.path.exists(pfont)) : os.mkdir(pfont)
+	if (not islist) : path = path[0]
+	return path
+
+
+def ShellCmd( cmd ) : 
+	'''
+	Run shell command and return the result/value
+
+	return:
+		np.array(, dtype=str)
+	'''
+	if (cmd[:5] == 'mkdir') : return mkdir(cmd[6:])
+	a = os.popen(cmd).readlines()
+	for i in xrange(len(a)) : a[i] = a[i][:-1]
+	return a
+	
 
 ##################################################
 ##################################################
@@ -3797,6 +4790,73 @@ def OutDir( outdir=None ) :
 #		os.system('rm '+f)
 #	if (len(a) == 1) : a = a[0]
 #	return a
+
+
+##################################################
+##################################################
+##################################################
+
+
+#def plt_ticks( array=None, xory='', axisvalue=None, nbin=0, axisshow=None, decimal=0, color='k' ) : 
+#	'''
+#	Set the axis ticks instead of plt.xticks().
+#
+#	Parameter:
+#
+#		array:
+#			(1) array(map) to be draw (plt.pcolormesh())
+#			(2) [x, y], list (plt.plot(x, y))
+#
+#		xory:
+#			='x': set xticks
+#			='y': set yticks
+#
+#		axisvalue:
+#			Must axisvalue.size <= this axis bins
+#			which axis value you want to have the tick label.
+#			Must axisvalue[0] corresponds to the center of first bin (0.5), axisvalue[-1] corresponds to the center of last bin (n-0.5).
+#			axisvalue must be a list or nd.array of value (not str)
+#
+#		nbin:
+#			Eech interval axisvalue[i]-axisvalue[i-1] contain how many bins of axis.
+#			If nbin=0, set two end aligned.
+#
+#		axisshow:
+#			label of axisvalue to be shown in the picture. You can set anything to it, but must be list of str. Defaust axisshow = axisvalue.astype(str).
+#
+#		decimal:
+#			Save to xx decimal places. Default to be int.
+#
+#		color:
+#			'r', 'b', 'k' and so on.
+#	'''
+#	# pcolor, must 2D
+#	if (type(array) == np.ndarray) : 
+#		shape = array.shape
+#		if (len(shape) != 2) : raise Exception('Error: input map must be 2D')
+#		if (xory=='x' or xory=='X') : n = shape[1]
+#		elif (xory=='y' or xory=='Y') : n = shape[0]
+#		else : raise Exception('Error: xory is not "x" nor "y"')
+#	elif (type(array) == list) : 
+#		if (xory=='x' or xory=='X') : n = len(array[0])
+#		else : n = len(array[1])
+#	else : raise Exception('Error: type(array) != np.ndarray or != list')
+#	# value range of axis, and interval
+#	if (type(axisvalue) == list) : axisvalue = np.array(axisvalue)
+#
+#	dx = axisvalue[1] - axisvalue[0]
+#	if (nbin == 0) : nbin = (n-1) / (axisvalue.size-1.)
+#	axisvalue2 = ((axisvalue-axisvalue[0]) / dx * nbin).astype(int) + 0.5 # to the center of the bin
+#	if (axisshow == None) : 
+#		axisvalue1 = np.around(axisvalue, decimal)
+#		if (decimal == 0) : axisvalue1 = axisvalue.astype(int)
+#		axisshow = axisvalue1.astype(str)
+#	if (xory=='x' or xory=='X') : 
+#		plt.xticks(axisvalue2, axisshow, color=color)
+#		plt.xlim(0,n)
+#	else : 
+#		plt.yticks(axisvalue2, axisshow, color=color)
+#		plt.ylim(0,n)
 
 
 ##################################################
@@ -4199,6 +5259,199 @@ def Deltafunc( a, a0, error=1e-6 ) :
 ##################################################
 
 
+def plt_period( x0, dx, period, fmt='%i' ) : 
+	'''
+	x0: x_original, x0 from x0[0] to x0[0]+period
+	dx: Interval of major in plt_axes()
+	Effect:
+		plot.xticks() of (x0 % period)
+	'''
+	n = 1.*x0[0]/dx
+	if (abs(n-round(n)) < dx/5000.) : n, x1 = int(round(n)), dx*0.1
+	else : n, x1 = 1+int(n), 0
+	x0tick = np.arange(dx*n, dx*n+period+x1, dx)
+	x1tick = (x0tick % period)
+	if (fmt[-1] == 'i') : x1tick = x1tick.astype(int)
+	else : 
+		x1tick = list(x1tick)
+		for i in range(len(x1tick)) : x1tick[i] = (fmt % x1tick[i])
+	plt.xticks(x0tick, x1tick)
+
+
+def plt_xaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=True, color='k', showminor=False, pcolor=False ) : 
+	axes = plt.gca()
+	times = npfmt(times)
+	fontsize = npfmt(fontsize)
+	if (which == 'major') : 
+		if (times.size != 1) : raise Exception('xy="'+xy+'", which="major", times.size must =1')
+		if (type(fmt) != str) : raise Exception('xy="'+xy+'", which="major", fmt must "%n.mf" or "%ni"')
+		tickloc = MultipleLocator(times.flatten()[0])
+		fmt = FormatStrFormatter(fmt)
+		axes.xaxis.set_major_locator(tickloc)
+		axes.xaxis.set_major_formatter(fmt)
+		plt.tick_params(which='major', direction=direction, colors=color, size=ticksize)
+	elif (which == 'minor') : 
+		if (times.size != 1) : raise Exception('xy="'+xy+'", which="minor", times.size must =1')
+		if (type(fmt) != str) : raise Exception('xy="'+xy+'", which="minor", fmt must "%n.mf" or "%ni"')
+		tickloc = MultipleLocator(times[0])
+		axes.xaxis.set_minor_locator(tickloc)
+		plt.tick_params(which='minor', direction=direction, colors=color, size=ticksize/2)
+		if (showminor) : 
+			fmt = FormatStrFormatter(fmt)
+			axes.xaxis.set_minor_formatter(fmt)
+	elif (which == 'both') : 
+		if (xy == 'x') : ns = '2'
+		else : ns = '4'
+		if (times.size != 2) : raise Exception('xy="'+xy+'", which="both", times.size must ='+ns)
+		if (type(fmt) == str) : fmt = [fmt, fmt]
+		elif (len(fmt) != 2) : raise Exception('xy="'+xy+'", which="both", fmt must ="%n.mf" or ["%n1.m1f", "%n2.m2f"]')
+		tickloc0 = MultipleLocator(times.flatten()[0])
+		tickloc1 = MultipleLocator(times.flatten()[1])
+		fmt0 = FormatStrFormatter(fmt[0])
+		fmt1 = FormatStrFormatter(fmt[1])
+		axes.xaxis.set_major_locator(tickloc0)
+		axes.xaxis.set_major_formatter(fmt0)
+		axes.xaxis.set_minor_locator(tickloc1)
+		if (showminor) : 
+			axes.xaxis.set_minor_formatter(fmt1)
+		plt.tick_params(which='major', direction=direction, colors=color, size=ticksize)
+		plt.tick_params(which='minor', direction=direction, colors=color, size=ticksize/2)
+	axesa = axes.xaxis.get_major_ticks()
+	axesi = axes.xaxis.get_minor_ticks()
+	for tick in axesa:
+		tick.label1.set_fontsize(fontsize)
+		if (label2On) : 
+			if (pcolor == False) : tick.label2On = True
+			tick.label2.set_fontsize(fontsize)
+	for tick in axesi:
+		if (showminor) : 
+			tick.label1.set_fontsize(int(fontsize*2/3.))
+			tick.label2.set_fontsize(int(fontsize*2/3.))
+		if (label2On) : 
+			if (pcolor == False) : tick.label2On = True
+
+
+def plt_yaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=True, color='k', showminor=False, pcolor=False) : 
+	axes = plt.gca()
+	times = npfmt(times)
+	if (len(fmt) == 1) : fmt = fmt[0]
+	if (which == 'major') : 
+		if (times.size != 1) : raise Exception('xy="'+xy+'", which="major", times.size must =1')
+		if (type(fmt) != str) : raise Exception('xy="'+xy+'", which="major", fmt must "%n.mf" or "%ni"')
+		tickloc = MultipleLocator(times[0])
+		fmt = FormatStrFormatter(fmt)
+		axes.yaxis.set_major_locator(tickloc)
+		axes.yaxis.set_major_formatter(fmt)
+		plt.tick_params(which='major', direction=direction, colors=color, size=ticksize)
+	elif (which == 'minor') : 
+		if (times.size != 1) : raise Exception('xy="'+xy+'", which="minor", times.size must =1')
+		if (type(fmt) != str) : raise Exception('xy="'+xy+'", which="minor", fmt must "%n.mf" or "%ni"')
+		tickloc = MultipleLocator(times[0])
+		axes.yaxis.set_minor_locator(tickloc)
+		if (showminor) : 
+			fmt = FormatStrFormatter(fmt)
+			axes.yaxis.set_minor_formatter(fmt)
+		plt.tick_params(which='minor', direction=direction, colors=color, size=ticksize/2)
+	elif (which == 'both') : 
+		if (xy == 'x') : ns = '2'
+		else : ns = '4'
+		if (times.size != 2) : raise Exception('xy="'+xy+'", which="both", times.size must ='+ns)
+		if (type(fmt) == str) : fmt = [fmt, fmt]
+		elif (len(fmt) != 2) : raise Exception('xy="'+xy+'", which="both", fmt must ="%n.mf" or ["%n1.m1f", "%n2.m2f"]')
+		tickloc0 = MultipleLocator(times.flatten()[0])
+		tickloc1 = MultipleLocator(times.flatten()[1])
+		fmt0 = FormatStrFormatter(fmt[0])
+		fmt1 = FormatStrFormatter(fmt[1])
+		axes.yaxis.set_major_locator(tickloc0)
+		axes.yaxis.set_major_formatter(fmt0)
+		axes.yaxis.set_minor_locator(tickloc1)
+		if (showminor) : 
+			axes.yaxis.set_minor_formatter(fmt1)
+		plt.tick_params(which='major', direction=direction, colors=color, size=ticksize)
+		plt.tick_params(which='minor', direction=direction, colors=color, size=ticksize/2)
+	axesa = axes.yaxis.get_major_ticks()
+	axesi = axes.yaxis.get_minor_ticks()
+	for tick in axesa:
+		tick.label1.set_fontsize(fontsize)
+		if (label2On) : 
+			if (pcolor == False) : tick.label2On = True
+			tick.label2.set_fontsize(fontsize)
+	for tick in axesi:
+		if (showminor) : 
+			tick.label1.set_fontsize(int(fontsize*2/3.))
+			tick.label2.set_fontsize(int(fontsize*2/3.))
+		if (label2On) : 
+			if (pcolor == False) : tick.label2On = True
+
+
+def plt_axes( xy='both', which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=False, color='k', showminor=False, pcolor=False) : 
+	'''
+	plt_axes() is used to set the axis ticks so that they look beautiful.
+
+	xy:
+		select axis, 'x' or 'y' or 'both'.
+
+	which:
+		'major' or 'minor' or 'both'.
+
+	times:
+		times of this value will show the tick. Can be one value, [,], np.array([,]) or the data itself.
+		1. times = onve value, list, np.array.shape=(2,)
+			(1) which='major' or 'minor', times is one value.
+			(2) which='both', times is list or np.array [[xmajor, xminor], [ymajor,yminor]].
+		2. If times = [np.array], means it is 2D. It means this np.array is the data to be ploted. For plt.plot(), it can be xarray or yarray. For plt.pcolormesh(), it is the map. It set times.shape=2D, then the real times will be calculated by the code automatically.
+
+	fmt:
+		format of the tick.
+
+	fontsize:
+		Control the size of the font.
+		if (xy != 'both') : fontsize.size ==1
+		elif (xy == 'both') : fontsize = [xsize, ysize] or one value
+
+	ticksize:
+		Control the size of the ticks, default=8.
+		if (xy != 'both') : ticksize.size ==1
+		elif (xy == 'both') : ticksize = [xticksize, yticksize] or one value
+
+	direction:
+		direction of the ticks, 'in' or 'out'
+
+	label2On:
+		=True or =False. Show the ticks on top and right of the figure.
+
+	showminor:
+		=False or =True. Show the minor ticks text or not.
+
+	color:
+		color of the ticks, default black.
+
+	pcolor:
+		use to plt.pcolormesh() or not. If True, there must be an error bar on the right, then we can't set yaxis.label2On=True
+	'''
+	if (fmt is None) : fmt = '%i'
+	if (xy == 'x') : 
+		plt_xaxes( xy=xy, which=which, times=times, fmt=fmt, fontsize=fontsize, ticksize=ticksize, direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
+	elif (xy == 'y') : 
+		plt_yaxes( xy=xy, which=which, times=times, fmt=fmt, fontsize=fontsize, ticksize=ticksize, direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
+	elif (xy == 'both') : 
+		times = npfmt(times)
+		if (len(times) != 2) : raise Exception('xy=="both", len(times) must =2')
+		if (type(fmt) == str) : fmt = [fmt, fmt]
+		elif (len(fmt) != 2) : raise Exception('xy="both", which="both", fmt must ="%n.mf" or len(fmt) must =2')
+		fontsize = npfmt(fontsize)
+		if (fontsize.size == 1) : fontsize = [fontsize[0], fontsize[0]]
+		ticksize = npfmt(ticksize)
+		if (ticksize.size == 1) : ticksize = [ticksize[0], ticksize[0]]
+		plt_xaxes( xy=xy, which=which, times=times[0], fmt=fmt[0], fontsize=fontsize[0], ticksize=ticksize[0], direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
+		plt_yaxes( xy=xy, which=which, times=times[1], fmt=fmt[1], fontsize=fontsize[1], ticksize=ticksize[1], direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
+
+
+##################################################
+##################################################
+##################################################
+
+
 def CCompile( codepath, command='', outdir='', sophyapath='' ) : 
 	'''
 	Compile and link the c/c++ code with SOPHYA.
@@ -4364,6 +5617,142 @@ def CCompile( codepath, command='', outdir='', sophyapath='' ) :
 	os.system(compilecommand+'-o a.o '+codepath)
 	os.system(linkcommand+'-o '+outdir+codepath[:-3]+'.out a.o')
 	os.system('rm a.o')
+
+
+##################################################
+##################################################
+##################################################
+
+
+def plt_legend() : 
+	print ' 2     9    0/1'
+	print ' 6    10    5/7'
+	print ' 3     8     4'
+
+
+def plt_color( N, r2b=False, k=1 ) : 
+	'''
+	Use for plt.plot(x, y, color=)
+
+	N:
+		number of color from red to blue
+
+	r2b:
+		color from red to blue or blue to red?
+
+	k:
+		r, g, b = k*(r, g, b)
+		Make the color darker
+	'''
+	if (N == 8) : 
+		return ['k', (0.42,0,1), 'b', 'c', 'g', 'y', (1,0.5,0), 'r']
+	elif (N == 7) : 
+		return ['k', (0.42,0,1), 'b', 'c', 'g', 'y', 'r']
+	elif (N == 6) : 
+		return ['k', 'b', 'c', 'g', 'y', 'r']
+	elif (N == 5) : 
+		return ['k', 'b', 'c', 'g', 'r']
+	elif (N == 4) : 
+		return ['k', 'b', 'g', 'r']
+	elif (N == 3) : 
+		return ['b', 'g', 'r']
+	elif (N == 2) : 
+		return ['b', 'r']
+	elif (N == 1) : 
+		return ['b']
+	#--------------------------------------------------
+	_jet_data_my = npfmt([
+		(255,   0,   0),
+		(255, 128,   0),
+		(200, 200,   0),
+		(  0, 200,   0),
+		(  0, 250, 250),
+		(  0,   0, 255),
+		(160,   0, 255)]) /255.
+	r, g, b = _jet_data_my.T
+	#--------------------------------------------------
+	r, g, b = npfmt([r,g,b])*k
+	x = np.linspace(0, 1, r.size)
+	fr = interpolate.interp1d(x, r)
+	fg = interpolate.interp1d(x, g)
+	fb = interpolate.interp1d(x, b)
+	x = np.linspace(0, 1, N)
+	r, g, b = fr(x), fg(x), fb(x)
+	color = []
+	for i in range(N) : 
+		color = color + [(r[i], g[i], b[i])]
+	if (r2b is False) : color = color[::-1]
+	return color
+
+
+def plt_colorls( l2d=None ) : 
+	'''
+	plt.plot(x, y, color=), when plot many curves in one figure, it needs many different colors. This function is used to create these colors.
+	The colors will change from read-yellow-green-cyen-blue-black
+
+	l2d:
+		light to deep color?
+		True, False, None
+
+	return:
+		[color, linestyle]
+
+	Use:
+		colorls = plt_colorls()
+		plt.plot(x, y, color=colorls[0][i], ls=colorls[1][i])
+	'''
+	if (l2d is None) : 
+		color9 = ['r', 'b', 'k', 'g', 'c', 'm', (1,0.5,0), (0,1,0), 'y', (0.5,0,0)]
+	elif (l2d is True) : 
+		color9 = ['r', (1,0.5,0), 'y', (0,1,0), 'g', 'c', 'b', 'm', (0.5,0,0), 'k']
+	elif (l2d is False) : 
+		color9 = ['k', (0.5,0,0), 'm', 'b', 'c', 'g', (0,1,0), 'y', (1,0.5,0), 'r']
+	linestyle9 = ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
+	color18 = color9 + color9
+	linestyle18 = linestyle9 + ['--', '--', '--', '--', '--', '--', '--', '--', '--', '--']
+	color27 = color18 + color9
+	linestyle27 = linestyle18 + [':', ':', ':', ':', ':', ':', ':', ':', ':', ':']
+	return [color27, linestyle27]
+#	if   (n <=  9) : colorline = [color9,  linestyle9]
+#	elif (n <= 18) : colorline = [color18, linestyle18]
+#	elif (n <= 27) : colorline = [color27, linestyle27]
+#	else : raise Exception(efn()+'n > 27')
+#	return colorline
+
+
+def plt_plot_xperiod( x, period, axes_major_times, fmt='%i' ) : 
+	'''
+	plt.plot(x,y) will plot x from small to large.
+	If x is period, then 
+		xnew, x1, x2 = plt_plot_xperiod(x, period, axes_major_times, fmt)
+		plt.plot( xnew, y )
+		plt.axes('x', 'major', axes_major_times, fmt)
+		plt.xticks(x1, x2)
+	'''
+	x, n = npfmt(x)*1, [len(x)]
+	for i in range(len(x)-1) : 
+		if (x[i] > x[i+1]) : n = [i+1] + n
+	for i in range(len(n)-1) : 
+		x[n[i]:n[i+1]] = x[n[i]:n[i+1]] + (i+1)*period
+	t = axes_major_times
+	if (t is None) : t = round(t)
+	if (t == 0) : t = 1
+	nt = x.min() / t
+	if (nt == int(nt)) : nt = int(nt)
+	else : nt = int(nt) + 1
+	xmin = nt * t
+	xmax = int(x.max()/t) * t
+	x1 = np.arange(xmin, xmax+0.1*t, t)
+	x2 = x1 % period
+	if (fmt[-1] == 'i') : sci = 1
+	else : 
+		for j in range(len(fmt)) : 
+			if (fmt[j] == '.') : break
+		sci = -int(fmt[j+1:-1])
+	if (sci >= 0) : x2 = x2.astype(int)
+	else : x2 = x2.round(-sci)
+	x2 = x2.astype(str)
+	return [x, x1, x2]
 
 
 ##################################################
@@ -5181,6 +6570,33 @@ def PAON4Chan2Antpos( chan2antHV=None ) :
 		if (n.min() == 0 or n.max() > 2) : raise Exception('chan2antHV='+str(chan2antHV)+' is not correct')
 	return B
 
+
+def DirStr( dirstr, expanduser=False ) : 
+	'''
+	Convert '../paon4/paon4_data' to '../paon4/paon4_data/'
+	
+	dirstr:
+		Can be str or list of str ['', '', ...]
+
+	expanduser:
+		True or False: os.path.expanduser('~/...')
+
+	return:
+		Same shape as input dirstr
+	'''
+	islist = True
+	if (Type(dirstr) == str) : 
+		islist, dirstr = False, [dirstr]
+	dirstr = list(dirstr)
+	for i in xrange(len(dirstr)) : 
+		if (dirstr[i] == '') : 
+			if (islist == False) : return ''
+		elif (dirstr[i][-1] != '/') : 
+			dirstr[i] = str(dirstr[i]+'/')
+		else : dirstr[i] = str(dirstr[i])
+		if (expanduser): dirstr[i]=os.path.expanduser(dirstr[i])
+	if (islist == False) : dirstr = dirstr[0]
+	return dirstr
 
 
 ##################################################
@@ -6060,6 +7476,20 @@ def RemoveRFI( *arg, **kwargs ) :
 ##################################################
 
 
+def plt_scinot( axis ) : 
+	'''
+	Plot axis in scientific notation.
+	axis:
+		= 'x', 'y', 'both'
+	'''
+	plt.ticklabel_format(axis=axis, style='sci', scilimits=(0,0))
+
+
+##################################################
+##################################################
+##################################################
+
+
 def Compile( code=None, machine='bao' ) : 
 	'''
 	Compile c/c++ with SOPHYA in my MacBook or in bao service machine.
@@ -6168,6 +7598,61 @@ def SelectLeastsq(array, axis=0, firstN=None, progress=False):
 	which = Sort(b + 1j*np.arange(b.size)).imag.astype(int)
 	'''
 	return which
+
+
+##################################################
+##################################################
+##################################################
+
+
+def plt_graticule( c=(0,0), a=1, b=None, Ncirc=1000, Nlon=None, Nline=1000, rot=0 ) : 
+	'''
+	c:
+		Where is the center. 
+		tuple() or np.array or list[], must be a pair.
+		Can be any value. 
+
+	a:
+		Diameter for circle, or major axis for ellipse
+
+	b:
+		For the circle, b=None.
+		For the ellipse, b is the minor axis.
+
+	Ncirc:
+		How many points to plot the circule.
+
+	Nlon:
+		Plt how many meridian line.
+		If Nlon==None, don't plt meridian.
+
+	Nline:
+		How many points to plot the meridian line.
+
+	rot:
+		Unit: degree.
+		Rotate the meridian lines.
+		Default, right hand horizon is RA=0, top is 90d, left is 180d, down is 360d.
+	'''
+	# Judge circle or ellipse
+	if (b is None) : b = a
+	else : 
+		if (b > a) : raise Exception(efn()+'b is minor axis, must smaller than a (major)')
+	p = np.linspace(0, 2*np.pi, Ncirc)
+	xlat = c[0] + a/2.*np.cos(p)
+	ylat = c[1] + b/2.*np.sin(p)
+	if (Nlon is not None) : 
+		xlon = np.zeros([Nlon, Nline])
+		ylon = xlon*0
+		p = np.linspace(0, 2*np.pi, Nlon+1)[:-1] + rot*np.pi/180
+		for i in range(Nlon) : 
+			xlon[i] = np.linspace(0, a/2.*np.cos(p[i]), Nline)
+			ylon[i] = np.tan(p[i]) * xlon[i]
+		xlon, ylon = xlon+c[0], ylon+c[1]
+	if (Nlon is None) : 
+		return np.array([xlat, ylat])
+	else : 
+		return [xlat, ylat, xlon, ylon]
 
 
 ##################################################
@@ -7664,17 +9149,17 @@ def freq2velo( dfreq, freq0 ) :
 	Doppler effect/shift
 
 	dfreq, freq0 in MHz
-	return dvelo in km/s
+	return dvelocity in km/s
 	'''
 	return 3e5*dfreq/freq0
 
 
-def velo2freq( dvelo, freq0 ) : 
+def velo2freq( dvelocity, freq0 ) : 
 	'''
-	dvelo in km/s, freq0 in MHz
+	dvelocity in km/s, freq0 in MHz
 	return dfreq in MHz
 	'''
-	return dvelo*freq0/(3e5)
+	return dvelocity*freq0/(3e5)
 
 
 ##################################################
@@ -11199,6 +12684,39 @@ class Phase( object ) :
 ##################################################
 
 
+def Same( array, err=0 ) : 
+	'''
+	Find the same elements in the array
+	array:
+		int or float array, not complex
+	err:
+		Set the error/difference between two elements that will be considered as the same
+	'''
+	a, err = np.sort(array), abs(err)
+	n = abs(a[1:] - a[:-1])
+	n = np.where(n<=err)[0]
+	a = a[n]
+	if (a.size == 0) : return np.array([])
+	v, vm, n = [a[0]], [[a[0]]], [2]
+	if (len(a) == 1) : vm[-1] = npfmt(vm[-1]).mean()
+	for i in xrange(1, len(a)) : 
+		if (a[i]-v[-1] > err) : 
+			v.append(a[i])
+			vm[-1] = npfmt(vm[-1]).mean()
+			vm.append([a[i]])
+			n.append(2)
+			if (i == len(a)-1) : vm[-1] = npfmt(vm[-1]).mean()
+		else : 
+			v[-1] = a[i]
+			vm[-1].append(a[i])
+			n[-1] +=1
+			if (i == len(a)-1) : vm[-1] = npfmt(vm[-1]).mean()
+	v = np.concatenate([[vm],[n]]).T
+	if ((v[:,0]-v[:,0].astype(int)).sum() == 0) : 
+		v = v.astype(int)
+	return v
+
+
 ##################################################
 ##################################################
 ##################################################
@@ -11444,7 +12962,7 @@ class QueueFor( object ) :
 
 
 def RandomSeed() : 
-	seed = int(('%.11f' % time.time()).split('.')[1][2:] + str(int(np.random.random()*99)))
+	seed = int(('%.11f' % time.time()).split('.')[1][2:])
 	np.random.seed(seed)
 	return seed
 
@@ -11454,388 +12972,96 @@ def RandomSeed() :
 ##################################################
 
 
-##################################################
-##################################################
-##################################################
+class PoolFor( object ) : 
+	dtype = 'class:'+sys._getframe().f_code.co_name
+	"""
+	def _DoMultiprocess( iterable ) : 
+		return a
+	
+	pool = PoolFor(Nstart, Nend, Nprocess)
+	data = pool.map_async(_DoMultiprocess, send, cast)
+	
+	data = np.concatenate(data, 0)
+	"""
+
+	def __init__( self, Nstart, Nend, Nprocess=None, info=False, warning=True ) :
+		self.zero = False
+		if (Nend-Nstart <= 0) : 
+			Raise(Warning, 'Nend-Nstart='+str(Nend-Nstart)+'<=0, return None')
+			self.zero = True
+			return
+		Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, warning)
+		if (Nend-Nstart < 2*Nprocess) : Nprocess = 1
+		if (info) : print 'Open '+str(Nprocess)+' processes. '+cpuinfo
+		self.Nstart, self.Nend, self.Nprocess = Nstart, Nend, Nprocess
+		self.pool = multiprocessing.Pool(Nprocess)
+		# nsplit
+		nsplit = np.linspace(Nstart,Nend, Nprocess+1).astype(int)
+		nsplit = list(np.array([nsplit[:-1], nsplit[1:]]).T)
+		for i in xrange(len(nsplit)) : nsplit[i]=tuple(nsplit[i])
+		self.nsplit = nsplit
+		# self.nsplit = [(n1,n2), (n3,n4), (n5,n6), .....]
 
 
-
-##################################################
-##################################################
-##################################################
-
-
-#def Fits2Hdf5( fitspath, *arg ) : 
-#	'''
-#	Convert .fits to .hdf5
-#
-#	*arg:
-#		dicts that will update to each level .attrs
-#		If you want to update level 2 and leave level 0 and 1, you can: 
-#			FitsHdf5( fitspath, {}, {}, {'a':1,'b':2} )
-#		OR FitsHdf5( fitspath, [{}, {}, {'a':1,'b':2}] )
-#	'''
-#	hdf5name0 = fitspath[:-5] + '.hdf5'
-#	fitspath = os.path.expanduser(fitspath)
-#	hdf5name = os.path.expanduser(hdf5name0)
-#	fo = pyfits.open(fitspath)
-#	if (len(arg)==1 and type(arg)!=dict) : arg = arg[0]
-#	#--------------------------------------------------
-#	if (os.path.exists(hdf5name)) : 
-#		os.system('mv '+hdf5name+' '+hdf5name[:-5]+'_old.hdf5')
-#	try : ho = h5py.File(hdf5name, 'w')
-#	except : 
-#		hdf5name = hdf5name.split('/')[-1]
-#		ho = h5py.File(hdf5name, 'w')
-#	#--------------------------------------------------
-#	maskkeys = ['XTENSION','BITPIX','NAXIS','NAXIS1','NAXIS2','NAXIS3','PCOUNT','GCOUNT','SOPHYAFV']
-#	if (len(arg) > 0) : ho.attrs.update(arg[0])
-#	for i in xrange(len(fo.info(0))) : 
-#		name = fo[i].name
-#		if (name == '') : name = 'DATA_'+str(i)
-#		ho[name] = fo[i].data
-#		hdr = fo[i].header
-#		key, value, comment =hdr.keys(),hdr.values(),hdr.comments
-#		ncom = 0
-#		for j in xrange(len(hdr)) : 
-#			if (key[j] in maskkeys) : continue
-#			if (key[j] == 'COMMENT') : 
-#				key[j] = key[j] + '_'+str(ncom)
-#				ncom += 1
-#			ho[name].attrs[key[j]] = value[j]
-#			if (comment[j] != '') : 
-#				ho[name].attrs[key[j]+'_COM'] = comment[j]
-#		if (i < len(arg)-1) : ho[name].attrs.update(arg[i+1])
-#	print hdf5name0+'  -->  saved'
-#	ho.close()
-
-
-##################################################
-##################################################
-##################################################
-
-
-#class Fits2Hdf5( object ) : 
-#
-#
-#	def __init__( self, fitspath=None ) : 
-#		if (fitspath is None) : return
-#		self.fitspath = fitspath
-#		self.hdf5path = fitspath[:-5]+'.hdf5'
-#		self.fits = pyfits.open(os.path.expanduser(fitspath))
-#		self._h5pyFile()
-#		self.IgnoreKeys()
-#
-#
-#	def _h5pyFile( self ) : 
-#		hdf5path = os.path.expanduser(self.hdf5path)
-#		if (os.path.exists(hdf5path)) : 
-#			os.system('mv '+hdf5path+' '+hdf5path[:-5]+'_old.hdf5')
-#		try : self.hdf5 = h5py.File(hdf5path, 'w')
-#		except : 
-#			self.hdf5path = hdf5path.split('/')[-1]
-#			self.hdf5 = h5py.File(self.hdf5path, 'w')
-#
-#
-#	def UpdateHDUAttrs( self, hduattrs ) : 
-#		'''
-#		For example, Fits contains 3 HDUs: Auto, CrossReal, CrossImag, then its Hdf5 has 4 attrs: f.attrs, f['Auto'].attrs, f['CrossReal'].attrs, f['CrossImag'].attrs
-#		self.UpdateHDUAttrs() is used to update these 4 attrs
-#		len(attrslist) <= len(HDUs), it will update one by one until finish
-#
-#		hduattrs:
-#			list of dict: [{}, {}, {}, {}]
-#			hduattrs[0] is for f.attrs
-#			hduattrs[1] is for f['Auto'].attrs
-#			......
-#		'''
-#		self.hduattrs = attrslist
-#
-#
-#	def UpdateHDUName( self, hduname ) : 
-#		''' Use this hduname to instead of that in FITS '''
-#		self.hduname = hduname
-#
-#
-#	def Append( self, array, name, attrs=None ) : 
-#		'''
-#		Append new array to .hdf5
-#		attrs: dict{}
-#		'''
-#		self.hdf5[name] = array
-#		self.hdf5[name].attrs.update(attrs)
-#
-#
-#	def IgnoreKeys( self, ignorekeys=None ) : 
-#		'''
-#		ignorekeys:
-#			keys in Fits that won't save to Hdf5
-#		'''
-#		self.ignorekeys = ['XTENSION','BITPIX','NAXIS','NAXIS1','NAXIS2','NAXIS3','PCOUNT','GCOUNT','SOPHYAFV']
-#		if (ignorekeys is None) : return
-#		istype = IsType()
-#		if (istype.isstr(ignorekeys)) : ignorekeys = [ignorekeys]
-#		elif (type(ignorekeys) in [list, tuple, np.ndarray]) : 
-#			ignorekeys = list(ignorekeys)
-#		else : return
-#		self.ignorekeys += ignorekeys
-#
-#
-#	def Convert( self ) : 
-#		try : self.hdf5.attrs.update(self.hduattrs[0])
-#		except : pass
-#		for i in xrange(len(self.fits.info(0))) : 
-#			try : name = self.hduname[i]
-#			except :
-#				name = fo[i].name
-#				if (name == '') : name = 'HDU_'+str(i)
-#			self.hdf5[name] = self.fits[i].data
-#			hdr = self.fits[i].header
-#			keys, values, comments = hdr.keys(), hdr.values(), list(hdr.comments)
-#			ncom = 1
-#			for j in xrange(len(keys)) : 
-#				if (keys[j] in self.ignorekeys) : continue
-#				if (keys[j] == 'COMMENT') : 
-#					keys[j] = keys[j] + '_'+str(ncom)
-#					ncom += 1
-#				self.hdf5[name].attrs[keys[j]] = values[j]
-#				if (comments[j] != '') : 
-#					self.hdf5[name].attrs[keys[j]+'_COM']=comments[j]
-#			try : self.hdf5[name].attrs.update(self.hduattrs[i+1])
-#			except : pass
-#}
-#
-#		def Save( self ) : 
-#			print self.hdf5path+'  -->  saved'
-#			self.hdf5.close()
-#			self.__dict__.clear()
-
-
-##################################################
-##################################################
-##################################################
-
-
-def SymbolAdd( string ) : 
-	'''
-	For example:
-		SymbolAdd(5a-7+3b+4c+7a-13b+2)
-	return:
-		'12a-10b+4c-5'
-	'''
-	# Remove space
-	stringsplit = string.split(' ')
-	string = ''
-	for i in xrange(len(stringsplit)) : string += stringsplit[i]
-	# Find operator: '+' and '-'
-	operator = []
-	for i in xrange(len(string)) : 
-		if (string[i] in ['+', '-']) : operator.append(i)
-	operator = [0] + operator + [len(string)]
-	# Extract number and symbol
-	number, symbol = [], []
-	for i in xrange(len(operator)-1) : 
-		s = string[operator[i]:operator[i+1]]
-		try : 
-			v = float(s)
-			if (v == int(v)) : v = int(v)
-			number.append(v)
-			symbol.append('')
-			continue
-		except : pass
-		for j in xrange(len(s)-1, -1, -1) : 
-			if (j == 0) : 
-				number.append(1)
-				symbol.append(s)
-			try : 
-				v = float(s[:j])
-				if (v == int(v)) : v = int(v)
-				number.append(v)
-				symbol.append(s[j:])
-				break
-			except : pass
-	# Calculate
-	renumber, resymbol = [number[0]], [symbol[0]]
-	for i in xrange(1, len(symbol)) : 
-		try : 
-			n = resymbol.index(symbol[i])
-			renumber[n] += number[i]
-		except : 
-			resymbol.append(symbol[i])
-			renumber.append(number[i])
-	# Merge
-	restring, numstring = '', ''
-	for i in xrange(len(resymbol)) : 
-		strnum = str(renumber[i])
-		if (strnum[0] != '-') : strnum = '+' + strnum
-		if (resymbol[i] == '') : numstring = strnum
-		else : restring += strnum + resymbol[i]
-	restring += numstring
-	if (restring[0] == '+') : restring = restring[1:]
-	return restring
-
-
-##################################################
-##################################################
-##################################################
-
-
-class FAST21cm( object ) : 
-
-
-	def __init__( self, fast21cmdir=None ) : 
-		if (fast21cmdir is None) : self.fast21cmdir = '/usr/bin/21cmFAST/'
-		else : self.fast21cmdir = DirStr(fast21cmdir, True)
-		self.message = False
-
-
-	def Cosmology( self, h=None, OMm=None, OMb=None, OMn=None, OMk=None, OMr=None, SIGMA8=None, Y_He=None, POWER_INDEX=None, wl=None ) : 
-		''' Cosmology parameters, default are the results from Plank 2015 '''
-		if (h   is None) : h   = 0.6781
-		if (OMm is None) : OMm = 0.308
-		if (OMb is None) : OMb = 0.02226
-		if (OMn is None) : OMn = 0.0
-		if (OMk is None) : OMk = 0.0
-		if (OMr is None) : OMr = 8.6e-5
-		if (wl  is None) : wl = -1.0
-		if (Y_He is None) : Y_He = 0.245
-		if (SIGMA8 is None) : SIGMA8 = 0.8149
-		if (POWER_INDEX is None) : POWER_INDEX = 0.9677  # ns
-		#--------------------------------------------------
-		self.cosmology = {'hlittle':h, 'OMm':OMm, 'OMb':OMb, 'OMn':OMn, 'OMk':OMk, 'OMr':OMr, 'SIGMA8':SIGMA8, 'Y_He':Y_He, 'POWER_INDEX':POWER_INDEX, 'wl':wl}
-		key, value = self.cosmology.keys(), self.cosmology.values()
-		#--------------------------------------------------
-		filename = self.fast21cmdir+'Parameter_files/COSMOLOGY.H'
-		filebak = self.fast21cmdir+'Parameter_files/COSMOLOGY_original.H'
-		if (not os.path.exists(filebak)) : os.system('cp '+filename+' '+filebak)
-		fo = open(filename).readlines()
-		#--------------------------------------------------
-		for i in xrange(len(key)) : 
-			for j in xrange(len(fo)) : 
-				if (fo[j][:8+len(key[i])] != '#define '+key[i]) : continue
-				if (key[i] == 'OMb') : 
-					fo[j] = '#define OMb  (float) (('+str(value[i])+'/hlittle)/hlittle) // at z=0\n'
-					break
-				n1 = fo[j].find('(')
-				n2 = fo[j].find(')')
-				fo[j] = fo[j][:n1+1] + str(value[i]) + fo[j][n2:]
-				break
-		#--------------------------------------------------
-		open(filename, 'w').writelines(fo)
-		return self.cosmology
-
-
-	def Redshift( self, ZSTART=None, ZEND=None, ZSTEP=None ) : 
-		''' Set the redshift z you want '''
-		if (ZSTART is None) : ZSTART = 12
-		if (ZEND is None) : ZEND = 6
-		if (ZSTEP is None) : ZSTEP = -0.2
-		ZEND, ZSTART = np.sort(np.array([ZSTART, ZEND]))
-		if (ZSTEP == 0) : ZSTEP = -0.1
-		else : ZSTEP = -abs(ZSTEP)
-		self.redshift ={'ZSTART':ZSTART, 'ZEND':ZEND, 'ZSTEP':ZSTEP}
-		key, value = self.redshift.keys(), self.redshift.values()
-		#--------------------------------------------------
-		filename = self.fast21cmdir+'Programs/drive_zscroll_noTs.c'
-		filebak = self.fast21cmdir+'Programs/drive_zscroll_noTs_original.c'
-		if (not os.path.exists(filebak)) : os.system('cp '+filename+' '+filebak)
-		fo = open(filename).readlines()
-		#--------------------------------------------------
-		for i in xrange(len(key)) : 
-			for j in xrange(len(fo)) : 
-				if (fo[j][:8+len(key[i])] != '#define '+key[i]) : continue
-				n1 = fo[j].find('(')
-				n2 = fo[j].find(')')
-				fo[j] = fo[j][:n1+1] + str(value[i]) + fo[j][n2:]
-				break
-		#--------------------------------------------------
-		open(filename, 'w').writelines(fo)
-		return self.redshift
-
-
-	def Box( self, BOX_LEN=None, DIM=None, RANDOM_SEED=None ) : 
+	def map_async( self, func, send=None, bcast=None ) : 
 		'''
-		BOX_LEN : 
-			in Mpc
-		DIM : 
-			int, box.shape=(DIM,DIM,DIM)
-		RANDOM_SEED : 
-			int or 'time' => use localtime as seed
+		If use apply() or map(), we can stop the pool program with Ctrl-c. However, if use apply_async().get(xxx) or map_async().get(xxx), we can use Ctrl-c to stop the program at any time.
+
+		func:
+			_DoMultiprocess()
+
+		send:
+			None or tuple or 2D-ndarray
+			If is tuple, means each element is one array (note that must be 2D, and split along axis=0/row)
+			The whole 2D array which will be splited to each processes, such as the V in test_multiprocess_poolfor_class-func.py
+
+		bcast:
+			None or tuple or others/as a unity
+			If is others, may bcast = (bcast,)
+			Some data which will be broadcasted to each processes, such as the x and p0 in test_multiprocess_poolfor_class-func.py
+			Must be tuple: (x, p0, ...)
 		'''
-		if (BOX_LEN is None) : BOX_LEN = 300
-		if (DIM is None) : DIM = 768
-		if (RANDOM_SEED is None) : RANDOM_SEED = 1
-		DIM = int(DIM)
-		if (RANDOM_SEED == 'time') : RANDOM_SEED = int(('%.11f' % time.time()).split('.')[1][2:] + str(int(np.random.random()*99)))
-		self.box ={'BOX_LEN':BOX_LEN, 'DIM':DIM, 'RANDOM_SEED':RANDOM_SEED}
-		key, value = self.box.keys(), self.box.values()
+		if (self.zero) : return
+		if (type(bcast) == tuple) : 
+			if (len(bcast) == 1) : bcast = bcast[0]
+		if (type(send) != tuple) : send = (send,)
+		iterable, nsplit = self.nsplit[:], self.nsplit[:]
+		for i in xrange(len(nsplit)) : 
+			iterable[i] = [iterable[i]]
+			sendtmp = ()
+			for j in xrange(len(send)) : 
+				if (send[j] is None) : sendtmp += (None,)
+				else : sendtmp += (send[j][nsplit[i][0]:nsplit[i][1]],)
+			if (len(sendtmp) == 1) : sendtmp = sendtmp[0]
+			iterable[i] += [sendtmp, bcast]
 		#--------------------------------------------------
-		filename = self.fast21cmdir+'Parameter_files/INIT_PARAMS.H'
-		filebak = self.fast21cmdir+'Parameter_files/INIT_PARAMS_original.H'
-		if (not os.path.exists(filebak)) : os.system('cp '+filename+' '+filebak)
-		fo = open(filename).readlines()
+		self.data=self.pool.map_async(func, iterable).get(10**10)
 		#--------------------------------------------------
-		for i in xrange(len(key)) : 
-			for j in xrange(len(fo)) : 
-				if (fo[j][:8+len(key[i])] != '#define '+key[i]) : continue
-				if (key[i] == 'RANDOM_SEED') : 
-					fo[j] = '#define RANDOM_SEED (long) ('+str(value[i])+') // seed for the random number generator\n'
-				elif (key[i] == 'BOX_LEN') : 
-					fo[j] = '#define BOX_LEN (float) '+str(value[i])+' // in Mpc\n'
-				elif (key[i] == 'DIM') : 
-					fo[j] = '#define DIM (int) '+str(value[i])+' // number of cells for the high-res box (sampling ICs) along a principal axis\n'
-				break
-		#--------------------------------------------------
-		open(filename, 'w').writelines(fo)
-		return self.box
+		self.pool.close()
+		self.pool.join()
+		return self.data
 
 
-	def Linear( self, linear=False ) : 
-		'''
-		linear=True, evolve the density field with linear theory. Note that make sure that your cell size is in the linear regime at the redshift of interest.
-		linear=False, evolve the density field with 1st order perturbation theory. Note that make sure that you resolve small enough scales, roughly we find BOX_LEN/DIM should be < 1Mpc.
-		'''
-		if (linear is True) : linear = '1'
-		elif (linear is False) : linear = '0'
-		else : 
-			Raise(Warning, 'linear='+str(linear)+' is not True or False, reset linear=False')
-			linear = '0'
-		self.linear = bool(int(linear))
-		#--------------------------------------------------
-		filename = self.fast21cmdir+'Parameter_files/ANAL_PARAMS.H'
-		filebak = self.fast21cmdir+'Parameter_files/ANAL_PARAMS_original.H'
-		if (not os.path.exists(filebak)) : os.system('cp '+filename+' '+filebak)
-		fo = open(filename).readlines()
-		#--------------------------------------------------
-		string = '#define EVOLVE_DENSITY_LINEARLY'
-		for j in xrange(len(fo)) : 
-			if (fo[j][:len(string)] != string) : continue
-			fo[j] = string + ' (int) (' + linear + ')\n'
-			break
-		#--------------------------------------------------
-		open(filename, 'w').writelines(fo)
-		return self.linear
+##################################################
+##################################################
+##################################################
 
 
-	def Message( self, message=False ) : 
-		try : self.message = bool(message)
-		except : pass
-
-
-	def Make( self ) : 
-		pwd = ShellCmd('pwd')[0]
-		ShellCmd('cd '+self.fast21cmdir+'Programs/')
-		if (self.message) : os.system('make')
-		else : ShellCmd('make')
-		ShellCmd('cd '+pwd)
-
-
-	def Run( self, which='drive_zscroll_noTs' ) : 
-		pwd = ShellCmd('pwd')[0]
-		ShellCmd('cd '+self.fast21cmdir+'Programs/')
-		if (self.message) : ShellCmd('./'+which)
-		else : os.system('./'+which)
-		ShellCmd('cd '+pwd)
+def NprocessCPU( Nprocess=None, warning=True ) : 
+	uname = ShellCmd('uname')[0]
+	if (uname == 'Linux') : 
+		cores=ShellCmd('cat /proc/cpuinfo | grep "cpu cores"')[0]
+		threads=ShellCmd('cat /proc/cpuinfo | grep siblings')[0]
+	elif (uname == 'Darwin') : 
+		cores = ShellCmd('sysctl machdep.cpu.core_count')[0]
+		threads = ShellCmd('sysctl machdep.cpu.thread_count')[0]
+	cores   = int(cores.split(':')[-1])
+	threads = int(threads.split(':')[-1])
+	cpuinfo = 'CPU INFO: '+str(cores)+' cores '+str(threads)+' threads'
+	if (Nprocess is None): Nprocess = threads
+	elif (Nprocess <= 0) : Nprocess = 1
+	if (Nprocess>threads and warning) : Raise(Warning, cpuinfo+', but now  Nprocess='+str(Nprocess))
+	return [Nprocess, cores, threads, cpuinfo]
 
 
 ##################################################

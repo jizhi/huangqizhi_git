@@ -1,11 +1,7 @@
-import sys
-#sys.path.append('/Users/huangqizhi/huangqizhi_git/jizhipy/')
-
 import os
-import numpy as np
 
-from Raise import *
 from npfmt import *
+from Raise import *
 from IsType import *
 
 

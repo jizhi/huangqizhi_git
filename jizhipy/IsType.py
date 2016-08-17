@@ -1,5 +1,6 @@
 
 
+
 class IsType( object ) : 
 	dtype = 'class:IsType'
 

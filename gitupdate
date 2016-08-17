@@ -54,7 +54,7 @@ if (a.lower() in ['y', 'yes']) :
 	Backup()
 	os.system('git add .')
 	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
-	os.system('git commit -m "'+mdtime+'"')
+	os.system('git commit -m "Updated at '+mdtime+'"')
 	os.system('git push -u origin master')
 else : print 'Cancel'
 
