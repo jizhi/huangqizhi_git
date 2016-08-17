@@ -1,5 +1,3 @@
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 #from matplotlib.cm import get_cmap
 #from matplotlib.ticker import MultipleLocator, FormatStrFormatter 
 
@@ -11,9 +9,6 @@ from basic import *
 ##################################################
 
 
-def Usetex() : 
-	''' Use latex, may encounter error on node1 '''
-	mpl.rcParams['text.usetex'] = True
 	
 
 ##################################################
