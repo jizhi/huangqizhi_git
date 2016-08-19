@@ -1,12 +1,10 @@
 #! /usr/bin/env python
 '''
 Function:
-	Provide 2 commands: 
-		cpnot: cp a directory except some files
+	Provide 1 commands: 
 		rmnot: rm a directory except some files
 
 Usage, examples:
-	cpnot -not "a b c" X Y
 	rmnot -not "a b c" X Y
 '''
 
@@ -17,7 +15,8 @@ import os
 
 a = sys.argv[1:]
 
-operate = a[0]
+#operate = a[0]
+operate = 'rm'
 a = a[1:]
 
 exclude = a[1+a.index('-not')]

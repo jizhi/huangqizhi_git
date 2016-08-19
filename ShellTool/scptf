@@ -1,0 +1,137 @@
+#! /usr/bin/env python
+'''
+Provide 1 command:
+	scptf: synchronize files between the local and target computers
+
+Usage, examples:
+	scptf -t ~/study/test.py   # synchronize a file with the information of the target computer set below
+	scptf -t -r ~/study/testdir  # synchronize a directory
+	scptf -f -r ~/stude/test.py ~/study/testdir
+
+	scptf Linux:huangqizhi@node1 -t ~/study/test.py  # Temporarily set tarsys, tarusr, tarIP = Linux, huangqizhi, node1
+
+	scptf Linux:huangqizhi@node1  # Modify tarsys, tarusr, tarIP of this file!
+'''
+
+##################################################
+
+# Information of target computer
+tarusr = 'huangqizhi'
+#tarsys = 'Darwin' # or 'Mac', Linux
+tarsys = 'Linux'
+tarIP  = 'pc'
+
+##################################################
+
+
+import os
+import sys
+from ShellCmd import *
+
+
+# Check input arguments
+a = sys.argv
+# Command
+a0 = os.path.basename(a[0]).split('.')[0]
+# Parameters
+a = a[1:]
+
+
+
+a0 = a[0].split(':')
+if ('@' in a0[1]) : 
+	tarsys = a0[0]
+	tarusr, tarIP = a0[1].split('@')
+	a = a[1:]
+	if (len(a) == 0) : 
+		which = ShellCmd('which scptf')[0]
+		txt = open(which).readlines()
+		for i in xrange(len(txt)) : 
+			if (txt[i][:6] == 'tarsys') : 
+				txt[i] = "tarsys = '"+tarsys+"'\n"
+				break
+		for i in xrange(len(txt)) : 
+			if (txt[i][:6] == 'tarusr') : 
+				txt[i] = "tarusr = '"+tarusr+"'\n"
+				break
+		for i in xrange(len(txt)) : 
+			if (txt[i][:5] == 'tarIP') : 
+				txt[i] = "tarIP = '"+tarIP+"'\n"
+				break
+		open(which, 'w').writelines(txt)
+		exit()
+
+
+
+# Must scptf -t/f
+if (len(a) < 2) : 
+	print 'missing arguments, must be "scptf -t file(s)" or "scptf -f file(s)"'
+	exit()
+if (a[0]!='-t' and a[0]!='-f') : 
+	print '"scptf '+a[0]+'", wrong action, must be "scptf -t" or "scptf -f"'
+	exit()
+
+act, a, scpopt = a[0], a[1:], ''
+# a[0] may be -r for scp dir
+if (a[0][0] == '-') : 
+	scpopt = a[0]
+	a = a[1:]
+
+# Remove . or ~ or .. in a
+for i in ['.', './', '..', '../', '~', '~/'] : 
+	if (i in a) : a.remove(i)
+
+
+# local ~
+lochome = os.path.expanduser('~/')
+# target ~
+if (tarsys.lower() == 'darwin') : tarhome = '/Users/'+tarusr+'/'
+else : tarhome = '/home/'+tarusr+'/'
+# ./ and ../
+d1dir = os.path.abspath('.')+'/'
+
+
+# dir of each files(a) and dir of the target
+# file name and dir
+# sys.argv will convert '~/' to abs path automatically
+adir = ['' for i in range(len(a))] # show
+adirabs = adir[:] # use
+for i in range(len(a)) : 
+
+	if (a[i][-1] == '/') : a[i] = a[i][:-1]
+	adir[i] = os.path.dirname(a[i])+'/' # save ./ and ../ 
+	if (adir[i]=='./' or adir[i]=='/') : adir[i] = ''
+	elif (adir[i][:2] == './') : adir[i] = adir[2:]
+	elif (adir[i][:len(lochome)] == lochome) : 
+		adir[i] = '~/' + adir[i][len(lochome):]
+
+	a[i] = os.path.abspath(a[i])
+	adirabs[i] = os.path.dirname(a[i])+'/'
+	if (os.path.isdir(a[i])) : 
+		if (scpopt=='' or scpopt=='-r') : scpopt = '-r'
+		else : scpopt = scpopt + 'r'
+	a[i] = os.path.basename(a[i])
+if (scpopt != '') : scpopt = scpopt + ' '
+
+
+bdir, bdirabs = adirabs[:], adirabs[:]
+for i in range(len(bdir)) : 
+	bdir[i] = '~/' + adirabs[i][len(lochome):]
+	bdirabs[i] = tarhome + adirabs[i][len(lochome):]
+
+
+# run command
+for i in range(len(a)) : 
+	if (act == '-t') : 
+		cmduse = 'scp ' + scpopt + adirabs[i] + a[i] +' '+ tarusr +'@'+tarIP+':' + bdirabs[i]
+		cmdprint = 'scp ' + scpopt + adir[i] + a[i] +' '+ tarusr +'@'+tarIP+':' + bdir[i]
+	
+	elif (act == '-f') : 
+		if (adir[i] == '') : adir[i] = '.'
+		if (os.path.exists(adirabs[i]) is False) : 
+			os.mkdir(adirabs[i])
+		cmduse = 'scp ' + scpopt + tarusr +'@'+tarIP+':' + bdirabs[i] + a[i] +' '+ adirabs[i]
+		cmdprint = 'scp ' + scpopt + tarusr +'@'+tarIP+':' + bdir[i] + a[i] +' '+ adir[i]
+
+	print cmdprint
+	os.system(cmduse)

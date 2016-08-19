@@ -12,9 +12,7 @@ else : dest = '~/bin'
 
 
 # system environment
-envlist = ['alias cpnot="python '+dest+'/CmdNot.py'+' cp"', 
-'alias rmnot="python '+dest+'/CmdNot.py'+' rm"', 
-'alias sysenv="python '+dest+'/SysEnvironment.py"']
+envlist = []
 
 
 ##################################################
@@ -44,6 +42,7 @@ for i in xrange(len(files)) :
 
 
 # install / uninstall
+if (dest[-1] == '/') : dest = dest[:-1]
 if (which == 'uninstall') : 
 	print 'Uninstall from  '+dest
 	opt = '-rm'
@@ -63,10 +62,6 @@ elif (which == 'install') :
 
 
 # Add/Remove environment
-if (os.path.exists('/usr/bin/SysEnvironment.py')) : sysenv = '/usr/bin/SysEnvironment.py'
-elif (os.path.exists(os.path.expanduser('~/bin/SysEnvironment.py'))) : sysenv = os.path.expanduser('~/bin/SysEnvironment.py')
-elif (os.path.exists('SysEnvironment.py')) : sysenv = 'SysEnvironment.py'
-
 if (type(envlist) == str) : envlist = [envlist]
 for i in xrange(len(envlist)) : 
-	os.system('python '+sysenv+' '+opt+' '+envlist[i])
+	os.system('sysenv '+opt+' '+envlist[i])
