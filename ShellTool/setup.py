@@ -5,27 +5,16 @@ from ShellCmd import *
 ##################################################
 
 
-# dest, without / at the end
-whichpython = ShellCmd('which python')[0].split('/')
-whichpython = '/'+whichpython[1]+'/'
-
-syspath = sys.path[:]
-for i in xrange(len(syspath)) : 
-	if (syspath[i][:len(whichpython)]==whichpython and syspath[i][-9:]=='-packages') : 
-		syspath = syspath[i] + '/'
-		break
-
-syspath += 'jizhipy'
-usrpath = '~/.jizhipy'
-
+# dest
 whoami = ShellCmd('whoami')[0]
-if (whoami == 'root') : 
-	dest = syspath
-	envlist = []
-else : 
-	dest = usrpath
-	# system environment
-	envlist = ['export PYTHONPATH="'+usrpath+'"']
+if (whoami == 'root') : dest = '/usr/bin'
+else : dest = '~/bin'
+
+
+# system environment
+envlist = ['alias cpnot="python '+dest+'/CmdNot.py'+' cp"', 
+'alias rmnot="python '+dest+'/CmdNot.py'+' rm"', 
+'alias sysenv="python '+dest+'/SysEnvironment.py"']
 
 
 ##################################################
@@ -81,4 +70,3 @@ elif (os.path.exists('SysEnvironment.py')) : sysenv = 'SysEnvironment.py'
 if (type(envlist) == str) : envlist = [envlist]
 for i in xrange(len(envlist)) : 
 	os.system('python '+sysenv+' '+opt+' '+envlist[i])
-
