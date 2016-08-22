@@ -11,6 +11,8 @@ Usage, examples:
 
 operate = 'rm'
 
+excludeall = ['.DS_Store']
+
 
 import sys
 import os
@@ -32,9 +34,6 @@ while ('' in b) : b.remove('')
 
 try : a[0] = os.path.abspath(os.path.expanduser(a[0]))
 except : raise Exception('Missing startdir and targetdir')
-try : a[1] = os.path.abspath(os.path.expanduser(a[1]))
-except : raise Exception('Missing targetdir')
-if (not os.path.exists(a[1])) : os.mkdir(a[1])
 
 for i in xrange(len(b)) : 
 	b[i] = os.path.abspath(os.path.expanduser(b[i]))
@@ -46,15 +45,13 @@ files = ShellCmd('find '+a[0])
 files.remove(a[0])
 for i in xrange(len(exclude)) : files.remove(exclude[i])
 
-rest = ''
 for i in xrange(len(files)) : 
 	start = files[i]
 	if (start.split('/')[-1] in excludeall) : continue
 	target = a[1] + start[len(a[0]):]
 	if (os.path.isdir(start)) : 
 		if (not os.path.exists(target)) : os.mkdir(target)
-#	else : 
-#		cmd = 'cp '+start+' '+target
-#		os.system(cmd)
-	else : rest += start+' '
-if (rest != '') : os.system('cp '+rest+a[1])
+	else : 
+		cmd = 'cp '+start+' '+target
+		os.system(cmd)
+
