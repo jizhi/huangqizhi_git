@@ -26,7 +26,11 @@ tarIP  = 'pc'
 
 import os
 import sys
-from ShellCmd import *
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
 
 
 # Check input arguments
@@ -38,8 +42,9 @@ a = a[1:]
 
 
 
+# Get tarsys, tarusr, tarIP from outside
 a0 = a[0].split(':')
-if ('@' in a0[1]) : 
+if (len(a0)==3 and '@' in a0[1]) : 
 	tarsys = a0[0]
 	tarusr, tarIP = a0[1].split('@')
 	a = a[1:]
