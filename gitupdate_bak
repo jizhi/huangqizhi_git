@@ -1,13 +1,11 @@
 #! /usr/bin/env python
-# jizhi on 20160822
+# jizhi on 20160729
 import os
 import sys
 import time
 
 
-notlist = '.DS_Store .git/'
 if (len(sys.argv) > 1) : 
-
 	if (sys.argv[1] == 'init') : 
 		print 'git config --global user.name : Input your git name'
 		username = raw_input()  # jizhi
@@ -18,20 +16,16 @@ if (len(sys.argv) > 1) :
 		os.system('git config --global user.name "'+username+'"')
 		os.system('git config --global user.email '+useremail)
 
-	elif (sys.argv[1] == '-not') : 
-		for i in xrange(len(sys.argv[2:])) : 
-			notlist += ' '+sys.argv[2+i]
-notlist = '"'+notlist+'"'
 
-
-def Backup( nostlist ) : 
+def Backup() : 
 	bktime=time.strftime('%Y.%m.%d.%p.%I.%M.%S', time.localtime())
 	pwd = os.popen('pwd').readlines()[0][:-1].split('/')[-1]
-	os.system('rm -rf ~/.'+pwd+'_*')
+	os.system('rm -r ~/.'+pwd+'*')
 	pwd = '~/.'+pwd+'_'+bktime+'/'
-	print '\nBackup to  '+pwd+'\n'
+	print '\nBackup to '+pwd+'\n'
 	os.system('mkdir '+pwd)
-	os.system('cpnot -not '+notlist+' . '+pwd)
+	os.system('cp -r * '+pwd)
+	os.system('cp ~/jizhi.py .')
 
 
 def ShellCmd( cmd ) : 
@@ -57,7 +51,7 @@ a = raw_input()
 
 
 if (a.lower() in ['y', 'yes']) : 
-	Backup(notlist)
+	Backup()
 	os.system('git add .')
 	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
 	os.system('git commit -m "Updated at '+mdtime+'"')
