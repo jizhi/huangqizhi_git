@@ -1,15 +1,16 @@
 
 
-def SortFilename( strlist ) : 
-	'''
-	(1) If filename is started from a number, it will be placed in front of that started from a letter: '21cmmap', 'apple'
-	(2) For the number, we take the 'first whole' number, not just the first number: ['a12', 'a0147', 'a6-5'] will be sorted to be ['a6-5', 'a12', 'a0147'], the 'first whole' numbers are 6(not 6-5), 12, 0147=147
-	(3) For the letter, sorted by the first letter from 'a' to 'z'
-	'''
-	# Sort from number to letter
-	order = []
-	for i in xrange(len(strlist)) : 
-		order.append()
+
+#def SortFilename( strlist ) : 
+#	'''
+#	(1) If filename is started from a number, it will be placed in front of that started from a letter: '21cmmap', 'apple'
+#	(2) For the number, we take the 'first whole' number, not just the first number: ['a12', 'a0147', 'a6-5'] will be sorted to be ['a6-5', 'a12', 'a0147'], the 'first whole' numbers are 6(not 6-5), 12, 0147=147
+#	(3) For the letter, sorted by the first letter from 'a' to 'z'
+#	'''
+#	# Sort from number to letter
+#	order = []
+#	for i in xrange(len(strlist)) : 
+#		order.append()
 
 
 

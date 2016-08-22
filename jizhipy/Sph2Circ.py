@@ -19,6 +19,8 @@ def Sph2Circ( angle, Dec ) :
 	else : 
 		return 2*np.arcsin( np.sin(angle/2.) /np.cos(Dec) )
 
+
+
 def Circ2Sph( angle, Dec ) : 
 	return 2*np.arcsin( np.sin(angle/2.) *np.cos(Dec) )
 

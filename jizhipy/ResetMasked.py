@@ -1,7 +1,5 @@
 from PoolFor import *
 
-##################################################
-
 
 
 def _DoMultiprocess_ResetMasked( iterable ) : 

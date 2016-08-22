@@ -1,87 +1,90 @@
 from Basic import *
 from scipy.optimize import leastsq, curve_fit
 
+
+
+#def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
+#	'''
+#	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
+#
+#	func: 
+#		(1) "polynomial":
+#			index is the highest order of x
+#			index=0: y = a + const*x
+#			index=1: y = a + b*x
+#			index=2: y = a + b*x + c*x^2
+#			return [a, b, c]
+#		(2) "gaussian":
+#			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
+#			return [mean, sigma]
+#		(3) "power-law":
+#			y = a*x^b
+#			return [a, b]
+#
+#	p0index:
+#		func=='polynomial': p0index=index
+#		func=='gaussian'  : p0index=[mean, stdev]
+#		func=='power-law' : p0index=[a,b]
+#
+#	spORmy:
+#		Use LeastsqSP() or LeastsqMatrix().
+#		(1) ='sp'
+#		(2) ='both'
+#		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
+#	'''
+#	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
+#	x, y = npfmt(x), npfmt(y)
+#	if (func.lower() == 'polynomial') : 
+#		if (type(p0index) not in [list, np.ndarray]) : 
+#			p0index = int(round(p0index))
+#			p0 = np.ones(p0index+1)
+#			p2 = LeastsqSP(x, y, func, p0)
+#			if (spORmy == 'both') : 
+#				p1 = LeastsqMatrix(x, y, func, p0index)
+#				p2 = np.append([p2], [p1], 0)
+#		else : 
+#			p2 = LeastsqSP(x, y, func, p0index)
+#			if (spORmy == 'both') : 
+#				index = len(p0index) - 1
+#				p1 = LeastsqMatrix(x, y, func, index)
+#				p2 = np.append([p2], [p1], 0)
+#		return p2
+#	elif (func.lower() == 'power-law') : 
+#		if (x.max()>0 and x.min()>0) : 
+#			if (type(p0index) not in [list, np.ndarray]) : 
+#				if (y.max()>0 and y.min()>0) : p0index=[1,1]
+#				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+#				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+#		elif (x.max()>0 and x.min()<0) : 
+#			xy = np.append(x[:,None], y[:,None], 1)
+#			xy = xy[xy[:,0]>0]
+#			x, y = xy.T
+#			if (y.max()>0 and y.min()>0) : p0index=[1,1]
+#			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
+#			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
+#		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
+#		p = LeastsqSP(x, y, func, p0index)
+#		return p
+#	elif (func.lower() == 'gaussian') : 
+#		xy = np.append(x[:,None], y[:,None], 1)
+#		xy = xy[xy[:,1]>0]
+#		x, y = xy.T
+#		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
+#		stdev = RMS(x-mean)
+#		if (stdev == 0) : stdev = 1
+#		if (type(p0index) not in [list, np.ndarray]) : 
+#			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
+#		else : 
+#			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
+#		if (spORmy == 'both') : 
+#			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
+#			p2 = np.append([p2], [p1], 0)
+#		return p2
+
+
 ##################################################
-
-
-
-def Leastsq( x, y, func='', p0index=3, normalized=True, spORmy='sp' ) : 
-	'''
-	Use LeastsqMatrix() or LeastsqSp() basing on spORmy
-
-	func: 
-		(1) "polynomial":
-			index is the highest order of x
-			index=0: y = a + const*x
-			index=1: y = a + b*x
-			index=2: y = a + b*x + c*x^2
-			return [a, b, c]
-		(2) "gaussian":
-			y = 1/(sigma*sqrt(2pi) * exp(-(x-mean)^2/(2sigma^2))
-			return [mean, sigma]
-		(3) "power-law":
-			y = a*x^b
-			return [a, b]
-
-	p0index:
-		func=='polynomial': p0index=index
-		func=='gaussian'  : p0index=[mean, stdev]
-		func=='power-law' : p0index=[a,b]
-
-	spORmy:
-		Use LeastsqSP() or LeastsqMatrix().
-		(1) ='sp'
-		(2) ='both'
-		Note that, LeastsqSP() performs much better than LeastsqMatrix(), so, generally we just use ='sp'(default)
-	'''
-	# because 'polynomial' and 'power-law' are very simple, we can use p0=[1,1] automatically.
-	x, y = npfmt(x), npfmt(y)
-	if (func.lower() == 'polynomial') : 
-		if (type(p0index) not in [list, np.ndarray]) : 
-			p0index = int(round(p0index))
-			p0 = np.ones(p0index+1)
-			p2 = LeastsqSP(x, y, func, p0)
-			if (spORmy == 'both') : 
-				p1 = LeastsqMatrix(x, y, func, p0index)
-				p2 = np.append([p2], [p1], 0)
-		else : 
-			p2 = LeastsqSP(x, y, func, p0index)
-			if (spORmy == 'both') : 
-				index = len(p0index) - 1
-				p1 = LeastsqMatrix(x, y, func, index)
-				p2 = np.append([p2], [p1], 0)
-		return p2
-	elif (func.lower() == 'power-law') : 
-		if (x.max()>0 and x.min()>0) : 
-			if (type(p0index) not in [list, np.ndarray]) : 
-				if (y.max()>0 and y.min()>0) : p0index=[1,1]
-				elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-				else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-		elif (x.max()>0 and x.min()<0) : 
-			xy = np.append(x[:,None], y[:,None], 1)
-			xy = xy[xy[:,0]>0]
-			x, y = xy.T
-			if (y.max()>0 and y.min()>0) : p0index=[1,1]
-			elif (y.max()<0 and y.min()<0) : p0index=[-1,1]
-			else : Raise(Exception, 'x>0 but y.max()>0 or y.min()<0, it is not a power-law')
-		else : Raise(Exception, 'x<0, it may not be a power-law, please check and fit it with the function written by yourself')
-		p = LeastsqSP(x, y, func, p0index)
-		return p
-	elif (func.lower() == 'gaussian') : 
-		xy = np.append(x[:,None], y[:,None], 1)
-		xy = xy[xy[:,1]>0]
-		x, y = xy.T
-		mean = (xy[xy[:,1]==xy[:,1].max()])[:,0].mean()
-		stdev = RMS(x-mean)
-		if (stdev == 0) : stdev = 1
-		if (type(p0index) not in [list, np.ndarray]) : 
-			p2 = LeastsqSP(x, y, func, [mean, stdev], normalized=normaliszed)
-		else : 
-			p2 = LeastsqSP(x, y, func, p0index, normalized=normaliszed)
-		if (spORmy == 'both') : 
-			p1 = LeastsqMatrix(x, y, func, 2, normalized=normaliszed)
-			p2 = np.append([p2], [p1], 0)
-		return p2
+##################################################
+##################################################
 
 
 def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) : 
@@ -119,7 +122,12 @@ def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) :
 		return p
 
 
-def FuncFit(func, x, y, p0, sigma=None, maxfev=10000) : 
+##################################################
+##################################################
+##################################################
+
+
+def FuncFit( func, x, y, p0, sigma=None, maxfev=10000 ) : 
 	'''
 	Need scipy.__version__ >= 0.15
 	Use scipy.optime.curve_fit()

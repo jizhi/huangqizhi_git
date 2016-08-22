@@ -1,10 +1,9 @@
-
 from npfmt import *
 from ShellCmd import *
 
 
 
-def GSM(frequency, fmt=None, bit=32, gsmpath='/usr/bin/gsm/'):
+def GSM( frequency, fmt=None, bit=32, gsmpath='/usr/bin/gsm/' ) :
 	'''
 	Generate foreground all sky map by GSM:
 		nside=512, ring, K, Galactic.

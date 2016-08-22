@@ -1,6 +1,7 @@
 from DirStr import *
 
 
+
 def mkdir( path=None ) : 
 	'''
 	If path doesn't exist, mkdir it

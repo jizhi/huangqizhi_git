@@ -1,5 +1,5 @@
-
 from npfmt import *
+
 
 
 def Repetition( array, err=0 ) : 
