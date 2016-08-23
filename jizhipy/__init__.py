@@ -1,3 +1,10 @@
+'''
+If you want to use matplotlib and plt_ :
+	from jizhipy.Plot import *
+
+If want to use Log : 
+	from jizhipy.Log import *
+'''
 from jizhipy.Arcsinhspace import Arcsinhspace
 from jizhipy.ArrayAxis import ArrayAxis
 from jizhipy.Basic import Pause, Purge
@@ -13,7 +20,6 @@ from jizhipy.GSM import GSM
 from jizhipy.Invalid import Invalid
 from jizhipy.IsType import IsType
 from jizhipy.Jy2K import Jy2K
-from jizhipy.Log import *      #@
 from jizhipy.npfmt import npfmt
 from jizhipy.PoolFor import NprocessCPU, PoolFor
 from jizhipy.ProbabilityDensity import BinsArcsinh, ProbabilityDensity
