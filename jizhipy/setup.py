@@ -25,7 +25,7 @@ if (whoami == 'root') :
 else : 
 	dest = usrpath
 	# system environment
-	envlist = ['export PYTHONPATH="'+usrpath+'"']
+	envlist = ['export PYTHONPATH="'+os.path.abspath(os.path.expanduser(usrpath))+'"']
 
 
 ##################################################
@@ -59,7 +59,7 @@ if (dest[-1] == '/') : dest = dest[:-1]
 if (which == 'uninstall') : 
 	print 'Uninstall from  '+dest
 	opt = '-rm'
-	dest = os.path.expanduser(dest+'/')
+	dest = os.path.abspath(os.path.expanduser(dest+'/'))
 	os.system('rm -rf '+dest+'*')
 #	for i in xrange(len(files)) : 
 #		f = dest + files[i]
@@ -69,7 +69,7 @@ if (which == 'uninstall') :
 elif (which == 'install') : 
 	print 'Install to  '+dest
 	opt = '-add'
-	dest = os.path.expanduser(dest+'/')
+	dest = os.path.abspath(os.path.expanduser(dest+'/'))
 	if (not os.path.exists(dest)) : os.mkdir(dest)
 	else : os.system('rm -rf '+dest+'*')
 	for i in xrange(len(files)) : 
