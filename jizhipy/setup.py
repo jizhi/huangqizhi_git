@@ -16,7 +16,8 @@ for i in xrange(len(syspath)) :
 		break
 
 syspath += 'jizhipy'
-usrpath = '~/.jizhipy'
+usrpath = '~/.python-packages/jizhipy'
+if (not os.path.expanduser('~/.python-packages')) : os.mkdir(os.path.expanduser('~/.python-packages'))
 
 whoami = ShellCmd('whoami')[0]
 if (whoami == 'root') : 
