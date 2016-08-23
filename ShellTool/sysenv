@@ -15,7 +15,11 @@ Usage, examples:
 
 import os
 import sys
-from ShellCmd import *
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
 
 
 # Environment
