@@ -1,6 +1,12 @@
 #! /usr/bin/env python
 import os
 import sys
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
+
 ##################################################
 
 
@@ -11,12 +17,6 @@ else : dest = '~/bin'
 
 
 ##################################################
-
-
-def ShellCmd( cmd ) : 
-	strlist = os.popen(cmd).readlines()
-	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
-	return strlist
 
 
 try : which = sys.argv[1].lower()
