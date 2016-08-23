@@ -73,14 +73,6 @@ while (txt[-1] == '\n') : txt.pop(-1)
 if (pm.lower() in ['-rm', '-remove', '--rm', '--remove']) : 
 	for i in xrange(len(envlist)) : 
 		while (envlist[i] in txt) : txt.remove(envlist[i])
-	if (which == 'export') : 
-		for i in xrange(len(txt)) : 
-			if (txt[i][:len(which)+1+len(envkey)] == which+' '+envkey) :
-				if (':$'+envkey in txt[i]) : 
-					n1 = txt[i].index(':$'+envkey)
-					n2 = n1 + len(':$'+envkey)
-					txt[i] = txt[i][:n1] + txt[i][n2:]
-					break
 	while (txt[-1] == '\n') : txt.pop(-1)
 	open(bash, 'w').writelines(txt)
 	os.system('source '+bash)
@@ -88,22 +80,13 @@ if (pm.lower() in ['-rm', '-remove', '--rm', '--remove']) :
 
 
 # Add
-if (which == 'export') : envlist = [env1, env5]
 envexist = False
 for i in xrange(len(envlist)) : 
 	if (envlist[i] in txt) : envexist = True
 if (envexist) : exit()
 
-if (which == 'alias') : txt.append('\n'+envlist[0])
-elif (which == 'export') : 
-	keyexist = False
-	for i in xrange(len(txt)) : 
-		if (txt[i][:len(which)+1+len(envkey)]==which+' '+envkey) :
-			keyexist = True
-			break
-	if (keyexist) : env = env5
-	else : env = env1
-	txt.append('\n'+env)
+if   (which == 'alias' ) : txt.append('\n'+env2)
+elif (which == 'export') : txt.append('\n'+env5)
 
 open(bash, 'w').writelines(txt)
 os.system('source '+bash)

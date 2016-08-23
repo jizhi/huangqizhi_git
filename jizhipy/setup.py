@@ -15,16 +15,15 @@ for i in xrange(len(syspath)) :
 		syspath = syspath[i] + '/'
 		break
 
-syspath += 'jizhipy'
-usrpath = '~/.python-packages/jizhipy'
-if (not os.path.expanduser('~/.python-packages')) : os.mkdir(os.path.expanduser('~/.python-packages'))
+usrpath = '~/.python-packages/'
+if (not os.path.expanduser(usrpath)) : os.mkdir(os.path.expanduser(usrpath))
 
 whoami = ShellCmd('whoami')[0]
 if (whoami == 'root') : 
-	dest = syspath
+	dest = syspath + 'jizhipy'
 	envlist = []
 else : 
-	dest = usrpath
+	dest = usrpath + 'jizhipy'
 	# system environment
 	envlist = ['export PYTHONPATH="'+os.path.abspath(os.path.expanduser(usrpath))+'"']
 

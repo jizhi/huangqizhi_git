@@ -5,35 +5,35 @@ If you want to use matplotlib and plt_ :
 If want to use Log : 
 	from jizhipy.Log import *
 '''
-from jizhipy.Arcsinhspace import Arcsinhspace
-from jizhipy.ArrayAxis import ArrayAxis
-from jizhipy.Basic import Pause, Purge
-from jizhipy.BrightSource import BrightSource
-from jizhipy.Constant import Constant
-from jizhipy.ConjugateSymmetrize import ConjugateSymmetrize
-from jizhipy.CoordTrans import CoordTrans, CoordTransHealpix
-from jizhipy.DirStr import DirStr
-from jizhipy.Edge2Center import Edge2Center, Center2Edge
-from jizhipy.FAST21cm import FAST21cm
-from jizhipy.FuncFit import Leastsq, FuncFit
-from jizhipy.GSM import GSM
-from jizhipy.Invalid import Invalid
-from jizhipy.IsType import IsType
-from jizhipy.Jy2K import Jy2K
-from jizhipy.npfmt import npfmt
-from jizhipy.PoolFor import NprocessCPU, PoolFor
-from jizhipy.ProbabilityDensity import BinsArcsinh, ProbabilityDensity
-from jizhipy.ProgressBar import ProgressBar
-from jizhipy.Raise import SysFrame, Raise
-from jizhipy.Repetition import Repetition
-from jizhipy.ResetMasked import ResetMasked
-from jizhipy.ShellCmd import mkdir, ShellCmd
-from jizhipy.Smooth import SmoothWeight, Smooth
-from jizhipy.Sort import Sort
-from jizhipy.SortFilename import SortFilename
-from jizhipy.Sph2Circ import Sph2Circ, Circ2Sph
-from jizhipy.StrFind import StrFind
-from jizhipy.StrlistAdd import StrlistAdd
-from jizhipy.SysMemory import SysMemory
-from jizhipy.Time import Time
+from Arcsinhspace import Arcsinhspace
+from ArrayAxis import ArrayAxis
+from Basic import Pause, Purge
+from BrightSource import BrightSource
+from Constant import Constant
+from ConjugateSymmetrize import ConjugateSymmetrize
+from CoordTrans import CoordTrans, CoordTransHealpix
+from DirStr import DirStr
+from Edge2Center import Edge2Center, Center2Edge
+from FAST21cm import FAST21cm
+from FuncFit import Leastsq, FuncFit
+from GSM import GSM
+from Invalid import Invalid
+from IsType import IsType
+from Jy2K import Jy2K
+from npfmt import npfmt
+from PoolFor import NprocessCPU, PoolFor
+from ProbabilityDensity import BinsArcsinh, ProbabilityDensity
+from ProgressBar import ProgressBar
+from Raise import SysFrame, Raise
+from Repetition import Repetition
+from ResetMasked import ResetMasked
+from ShellCmd import mkdir, ShellCmd
+from Smooth import SmoothWeight, Smooth
+from Sort import Sort
+from SortFilename import SortFilename
+from Sph2Circ import Sph2Circ, Circ2Sph
+from StrFind import StrFind
+from StrlistAdd import StrlistAdd
+from SysMemory import SysMemory
+from Time import Time
 
