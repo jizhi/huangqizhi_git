@@ -1,0 +1,107 @@
+#! /usr/bin/env python
+'''
+--Use software: ImageMagick
+
+Create .gif
+	convert -delay 50 imagedir/*.jpg out.gif 
+		--> -delay 50: 50 ticks
+		--> 1 tick=1/100s=10ms, so 50 ticks=0.5s
+
+eps, eps2, eps3:
+Same image format: .eps
+Different quality: eps:largest, eps2:meddle, eps3:smallest
+
+(1) "magick a.png b.bmp ..., z.jpg eps2"
+Convert a.png, b.bmp, ..., z.jpg to eps2:a.eps, eps2:b.eps, eps2....eps, eps2:z.jpg, and save to current directory
+
+(2) "magick indir eps"
+Convert all images in directory "indir" to .eps, and save to current directory
+
+(3) "magick a.png indir ~/study/b.jpg outdir/eps3"
+Convert a.png, ~/study/b.jpg, all images in "indir" to .eps3 format and save to directory "outdir"
+
+(4) "magick -not indir eps3"
+Exclude images with the output format in "indir"
+For example, ls indir: a.jpg, b.eps, c.bmp, d.eps, e.png
+If "magick indir eps", then will convert all images
+But if "magic -not indir eps", then will just convert a.jpg, c.bmp, e.png, exclude b.eps and d.eps
+'''
+
+
+import os, sys
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
+
+
+argv = sys.argv[1:]
+
+
+# outdir, outfmt
+out = argv[-1]
+outfont = ''
+if ('/' not in out) : 
+	outdir = ''
+	outfmt = out
+else : 
+	n = out.rfind('/')
+	outdir = out[:n+1]
+	outfmt = out[n+1:]
+
+pwd = os.path.abspath(os.path.expanduser(outdir))
+if (not os.path.exists(pwd)) : os.mkdir(pwd)
+
+if (outfmt[0] != '.') : outfmt = '.'+outfmt
+if (outfmt.lower() == '.eps2') : 
+	outfmt = outfmt[:-1]
+	outfont = 'eps2:'
+elif (outfmt.lower() == '.eps3') : 
+	outfmt = outfmt[:-1]
+	outfont = 'eps3:'
+elif ('.eps' in outfmt.lower() and outfmt.lower() != '.eps') : outfmt = outfmt[:4]
+argv = argv[:-1]
+
+
+# -not
+exclude = False
+if (argv[0].lower() == '-not') : 
+	exclude = True
+	argv = argv[1:]
+
+
+# Exists
+infiles = []
+for i in xrange(len(argv)) : 
+	pwd = os.path.abspath(os.path.expanduser(argv[i]))
+	if (not os.path.exists(pwd)) : 
+		print argv[i]+'  NOT exists'
+		continue
+	if (not os.path.isdir(pwd)) : infiles.append(argv[i])
+	else : 
+		indir = argv[i]
+		if (indir[-1] != '/') : indir += '/'
+		sc, files = ShellCmd('ls '+indir), []
+		for j in xrange(len(sc)) : 
+			if (indir != './') : sc[j] = indir + sc[j]
+			if (not os.path.isdir(os.path.abspath(os.path.expanduser(sc[j])))) : files.append(sc[j])
+		infiles += files
+
+
+# Convert
+for i in xrange(len(infiles)) : 
+	filename = infiles[i].split('/')[-1]
+	n = filename.rfind('.')
+	if (n >= 0) : 
+		infmt = filename[n:]
+		filename = filename[:n]
+	# Exclude
+	outname = outdir + filename + outfmt
+	if (exclude and os.path.exists(os.path.abspath(os.path.expanduser(outname)))) : continue
+	# Convert
+	outname = outfont + outdir + filename + outfmt
+	cmd = 'convert '+infiles[i]+' '+outname
+	print cmd
+	os.system(cmd)
+
