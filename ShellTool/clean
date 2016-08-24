@@ -1,0 +1,73 @@
+#! /usr/bin/env python
+'''
+clean  dir  filename
+
+NOTE THAT: if filename contains * (gsm_*.dat), must add "": finename="gsm_*.dat"
+
+(1) clean ~/ "gsm_*.dat"
+Clean/Remove gsm_*.data in/under ~/
+
+(2) clean -not "paon4/ ~/study/gsm_408.dat" "~/ gsm_*.dat"
+Clean/Remove gsm_*.data in/under ~/, except gsm_*.data in/under paon4/ and file ~/study/gsm_408.dat
+'''
+
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
+
+
+import os
+import sys
+argv = sys.argv[1:]
+
+
+# -not
+exclude = []
+if (argv[0].lower() == '-not') : exclude = argv[1].split(' ')
+while ('' in exclude) : exclude.remove('')
+
+files = []
+for i in xrange(len(exclude)) : 
+	exclude[i] = os.path.abspath(os.path.expanduser(exclude[i]))
+	if (not os.path.exists(exclude[i])) : continue
+	sc = ShellCmd('find '+exclude[i])
+	if (os.path.isdir(exclude[i])) : sc.remove(exclude[i])
+	files += sc
+	if (i == 0) : argv = argv[2:]
+exclude = files[:]
+
+
+if (len(argv) < 2) : 
+	print 'Error: must be   clean dir filename \n            or   clean -not "XXX" dir filename'
+	exit()
+
+indir, name = argv[:2]
+indir = os.path.abspath(os.path.expanduser(indir))
+
+files = ShellCmd('find '+indir+' -name "'+name+'"')
+
+for i in xrange(len(exclude)) : 
+	if (exclude[i] in files) : files.remove(exclude[i])
+
+
+N = len(str(len(files)))
+print '\n----------------------------------------------'
+for i in xrange(len(files)) : 
+	idx = (('%'+str(N)+'i') % i)
+	print idx+'-  '+files[i]
+
+print '\n----------------------------------------------'
+print 'Do you really want to delete all files above ?'
+print 'Press "YeS" to YES, others to NO\n'
+
+which = raw_input()
+if (which != 'YeS') : 
+	print 'Cancel !'
+	exit()
+
+for i in xrange(len(files)) : 
+	os.system('rm -rf '+files[i])
+print 'Deleta all --> done !'
+
