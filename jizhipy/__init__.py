@@ -21,6 +21,7 @@ from Invalid import Invalid
 from IsType import IsType
 from Jy2K import Jy2K
 from npfmt import npfmt
+from Outdir import Outdir
 from PoolFor import NprocessCPU, PoolFor
 from ProbabilityDensity import BinsArcsinh, ProbabilityDensity
 from ProgressBar import ProgressBar
@@ -36,4 +37,3 @@ from StrFind import StrFind
 from StrlistAdd import StrlistAdd
 from SysMemory import SysMemory
 from Time import Time
-

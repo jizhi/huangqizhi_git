@@ -16,7 +16,8 @@ for i in xrange(len(syspath)) :
 		break
 
 usrpath = '~/.python-packages/'
-if (not os.path.expanduser(usrpath)) : os.mkdir(os.path.expanduser(usrpath))
+usrpathpwd = os.path.abspath(os.path.expanduser(usrpath))
+if (not os.path.exists(usrpathpwd)) : os.mkdir(usrpathpwd)
 
 whoami = ShellCmd('whoami')[0]
 if (whoami == 'root') : 
@@ -25,7 +26,7 @@ if (whoami == 'root') :
 else : 
 	dest = usrpath + 'jizhipy'
 	# system environment
-	envlist = ['export PYTHONPATH="'+os.path.abspath(os.path.expanduser(usrpath))+'"']
+	envlist = ['export PYTHONPATH="'+usrpathpwd+'"']
 
 
 ##################################################
@@ -59,21 +60,18 @@ if (dest[-1] == '/') : dest = dest[:-1]
 if (which == 'uninstall') : 
 	print 'Uninstall from  '+dest
 	opt = '-rm'
-	dest = os.path.abspath(os.path.expanduser(dest+'/'))
-	os.system('rm -rf '+dest+'*')
-#	for i in xrange(len(files)) : 
-#		f = dest + files[i]
-#		if (os.path.exists(f)) : os.system('rm -rf '+f)
-#		if (os.path.exists(f+'c')) : os.system('rm -rf '+f+'c')
+	dest = os.path.abspath(os.path.expanduser(dest))
+	os.system('rm -rf '+dest)
+
 
 elif (which == 'install') : 
 	print 'Install to  '+dest
 	opt = '-add'
-	dest = os.path.abspath(os.path.expanduser(dest+'/'))
-	if (not os.path.exists(dest)) : os.mkdir(dest)
-	else : os.system('rm -rf '+dest+'*')
+	dest = os.path.abspath(os.path.expanduser(dest))
+	if (os.path.exists(dest)) : os.system('rm -rf '+dest)
+	os.mkdir(dest)
 	for i in xrange(len(files)) : 
-		os.system('cp -r '+files[i]+' '+dest)
+		os.system('cp -r '+files[i]+' '+dest+'/')
 
 
 # Add/Remove environment

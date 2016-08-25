@@ -2,10 +2,11 @@ import sys
 
 
 
-def SysFrame( downstack=None, upstack=None ) : 
+def SysFrame( downstack=0, upstack=None ) : 
 	'''
-	downstack: begining of the stack. Default=0
+	downstack: begining of the stack. Default=0 (local)
 	upstack: the uppest stack you want. Default to the uppest
+	Tack from downstack[include] to upstack[exclude]
 	'''
 	# How deep of the stack
 	for d in xrange(1000000) : 
@@ -16,16 +17,20 @@ def SysFrame( downstack=None, upstack=None ) :
 	elif (downstack < stackmin) : downstack = stackmin
 	if (upstack is None) : upstack = stackmax
 	elif (upstack > stackmax) : upstack = stackmax
+	if (downstack == upstack) : upstack += 1
 	#--------------------------------------------------
-	outstr = ''
+	outstr, files, funcs = '', [], []
 	for i in range(upstack, downstack, -1) : 
 		f = sys._getframe(i)
 		filename = f.f_code.co_filename
 		lineno   = f.f_lineno
 		name     = f.f_code.co_name
 		outstr += '  File "'+filename+'", line '+str(lineno)+', in '+name+' =>\n'
+		files.append(filename)
+		if (name[0] == '<') : funcs.append('')
+		else : funcs.append(name)
 	outstr = outstr[:-4]
-	return outstr
+	return [outstr, files, funcs]
 
 
 
@@ -42,7 +47,7 @@ def Raise( which=None, message='' ) :
 	else : 
 		which = 'Exception'
 		print '------------------- Exception -------------------'
-	print SysFrame(1)
+	print SysFrame(1)[0]
 	print which+': '+str(message)
 	print '-------------------------------------------------'
 	if (which == 'Exception') : exit()
