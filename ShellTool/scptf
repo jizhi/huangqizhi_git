@@ -19,7 +19,7 @@ Usage, examples:
 tarusr = 'huangqizhi'
 #tarsys = 'Darwin' # or 'Mac', Linux
 tarsys = 'Linux'
-tarIP  = 'pc'
+tarIP  = 'storage1'
 
 ##################################################
 
@@ -40,6 +40,10 @@ a0 = os.path.basename(a[0]).split('.')[0]
 # Parameters
 a = a[1:]
 
+
+if (len(a) == 0) : 
+	print tarsys+':'+tarusr+'@'+tarIP
+	exit()
 
 
 # Get tarsys, tarusr, tarIP from outside
