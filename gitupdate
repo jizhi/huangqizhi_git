@@ -5,13 +5,16 @@ import sys
 import time
 
 
+
 notlist = '.DS_Store .git/'
+notgitlab = ''
 if (len(sys.argv) > 1) : 
+	notgitlab = sys.argv[-1]
 
 	if (sys.argv[1] == 'init') : 
 		print 'git config --global user.name : Input your git name'
 		username = raw_input()  # jizhi
-		print 'git config --global user.email : Input your git e-mail'
+		print 'git config --global user.email : Input your git e-mail'  # bao.ac.cn
 		useremail = raw_input()
 		if ('' in [username, useremail]) : raise Exception('user.name="'+username+'", user.email='+useremail)
 		os.system('git init')
@@ -25,13 +28,18 @@ notlist = '"'+notlist+'"'
 
 
 def Backup( nostlist ) : 
-	bktime=time.strftime('%Y.%m.%d.%p.%I.%M.%S', time.localtime())
 	pwd = os.popen('pwd').readlines()[0][:-1].split('/')[-1]
-	os.system('rm -rf ~/.'+pwd+'_*')
-	pwd = '~/.'+pwd+'_'+bktime+'/'
+	if ('_github' == pwd[-7:]) : pwd = pwd[:-7]+'_gitlab'
+	pwd = '~/.'+pwd+'/'
+	pwdabs = os.path.abspath(os.path.expanduser(pwd))
+	if (not os.path.exists(pwdabs)) : os.mkdir(pwdabs)
+	if (not os.path.exists(pwdabs+'/.git')) : raise Exception('Please "git init '+pwd+'"')
 	print '\nBackup to  '+pwd+'\n'
-	os.system('mkdir '+pwd)
-	os.system('cpnot -not '+notlist+' . '+pwd)
+	# remove all except .git
+	os.system('rmnot -not ".git" '+pwdabs+' YeS')
+	os.system('cpnot -not '+notlist+' . '+pwdabs)
+	return pwdabs
+
 
 
 def ShellCmd( cmd ) : 
@@ -57,11 +65,13 @@ a = raw_input()
 
 
 if (a.lower() in ['y', 'yes']) : 
-	Backup(notlist)
+	if (notgitlab != 'notgitlab') : backuppath = Backup(notlist)
 	os.system('git add .')
 	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
 	os.system('git commit -m "Updated at '+mdtime+'"')
 	os.system('git push -u origin master')
+	if (notgitlab != 'notgitlab') :  # also update to gitlab
+		os.system(backuppath+'/gitupdate notgitlab')
 else : print 'Cancel !'
 
 

@@ -1,59 +1,70 @@
 from Edge2Center import *
+from IsType import *
+from Gaussian import *
 
 
 
-def BinsArcsinh( array, nbins=None ) : 
-	'''
-	When use ProbabilityDensity() and RemoveBeyond(), we need to set bins.
-	This function is used to return a reasonable and un-uniform bins.
-
-	nbins = bins.size
-	'''
-	# Get the "real" mean of array
+def BinsNonuniform( array, nbins, root=None, nsigma=None ) : 
+	# nsigma
 	array = npfmt(array)
-	if (nbins is None) : nbins = array.size/10
-	if (nbins < 5) : nbins = 5
-	amin, amax = array.min(), array.max()
-	am, sa = array.mean(), 3*array.std()
-	am1, am2 = am-sa, am+sa
-	a1, a2 = np.sort([am1, am2])
-	array = array[(array>a1)*(array<a2)]
-	am = array.mean()  #@
-	# np.arcsinh bins
-	b1, b2 = np.arcsinh(amin-am), np.arcsinh(amax-am)
-	bins = np.sinh(np.linspace(b1, b2, nbins)) + am
-	bins[0]  = bins[0] -0.01*abs(bins[0])
-	bins[-1] = bins[-1]+0.01*abs(bins[-1])
+	mean, std = array.mean(), array.std()
+	if (nsigma is not None) : 
+		array = array[(mean-nsigma*sigma<=array)*(array<=mean+nsigma*sigma)]
+	mean, std, amin, amax = array.mean(), array.std(), array.min(), array.max()
+	# bins
+	b = Edge2Center(np.linspace(amin, amax, nbins+1))
+	b = GaussianValue(b, mean, std)
+	b = np.log(b/b.min()*2)
+	try : 
+		if (root<=0 or root>1) : root = 1
+		b = b**root
+	except : pass
+	b = 1/b
+	b /= b.sum()
+	b = np.append([0], np.cumsum(b))
+	bins = amin + (amax-amin) * b
 	return bins
 
 
 
-def ProbabilityDensity( array, bins=None, density=True ) : 
+def ProbabilityDensity( array, bins, nonuniform=False, nsigma=4, density=True ) :
 	'''
 	Return the probability density or number counting of array.
 	
 	array:
 		Input array will flatten()
+
+	bins, arcsinh:
+		(1) bins = list/ndarray (edges), use this, nonuniform is invalid
+		(2) bins = int_number
+				nonuniform = False : uniform bins
+				else : use BinsNonuniform(array, bins, nonuniform), nonuniform is root
 	
-	bins:
-		bins can be int or list/np.array.
-		If bins == int:
-			Number of the uniform bins
-		If bins == list/np.array:
-			"Edges" of the bins. Note that edges.size = 1+bins.size
-			You can set any non-uniform bin widths with this parameter, such as log bin and arcsinh bin.
-	
+	nsigma:
+		Use how much sigma of the array to calculate the pdf?
+		Throw away the points very far from the mean
+
 	density:
 		If True, return the probability density = counting / total number / bin width
 		If False, return the counting number of each bin
 
 	Return:
-		[x, xc, y]
-		x  is the edge of the bins.
+		[xe, xc, y]
+		xe is the edge of the bins.
 		xc is the center of the bins.
 		y  is the probability density of each bin, 
 	'''
-	if (bins is None) : bins = BinsArcsinh(array)
+	# Throw away the points very far from the mean
+	try : float(nsigma)
+	except : nsigma = 4
+	array = npfmt(array).flatten()
+	sigma, mean = array.std(), array.mean()
+	array = array[(mean-nsigma*sigma<=array)*(array<=mean+nsigma*sigma)]
+	istype = IsType()
+	if (istype.isint(bins) or istype.isfloat(bins)) : 
+		bins = int(round(bins))
+		if (nonuniform) : bins = BinsNonuniform(array, bins, nonuniform)
+		else : bins = np.linspace(array.min(), array.max(), bins+1)
 	y, x = np.histogram(array, bins=bins, density=density)
 	xc = Edge2Center(x)
 	return [x, xc, y]

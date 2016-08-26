@@ -5,11 +5,16 @@ Function:
 		sysenv: is used to "add" or "remove" the environment in .bashrc
 
 Usage, examples:
-	sysenv -add alias cpnot="~/bin/cmdnot.py cp"
-	sysenv -rm  alias cpnot="~/bin/cmdnot.py cp"
+	sysenv -add alias 'cpnot="~/bin/cmdnot.py cp"'
+	sysenv -rm  alias 'cpnot="~/bin/cmdnot.py cp"'
 
-	sysenv -add export PYTHONPATH="/python2.7/site-packages/"
-	sysenv -rm export PYTHONPATH="/python2.7/site-packages/"
+NOTE THAT, can NOT write as:
+	sysenv -add alias cpnot="~/bin/cmdnot.py cp"
+		--> cpnot="~/bin/cmdnot.py cp" is not an valid argument, will raise error: syntax error near unexpected token `('
+		--> use '' or "" to make it to be an unity
+
+	sysenv -add export "PYTHONPATH=/python2.7/site-packages/"
+	sysenv -rm  export 'PYTHONPATH="/python2.7/site-packages/"'
 '''
 
 

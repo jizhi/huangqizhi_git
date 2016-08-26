@@ -26,6 +26,8 @@ if (whoami == 'root') :
 else : 
 	dest = usrpath + 'jizhipy'
 	# system environment
+	home = ShellCmd('echo $HOME')[0]
+	if (usrpathpwd[:len(home)] == home) : usrpathpwd = '$HOME'+usrpathpwd[len(home):]
 	envlist = ['export PYTHONPATH="'+usrpathpwd+'"']
 
 

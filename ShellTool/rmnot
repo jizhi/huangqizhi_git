@@ -2,16 +2,17 @@
 '''
 Function:
 	Provide 1 commands: 
-		cpnot: cp a directory except some files
+		cpnot: rm a directory except some files
 
 Usage, examples:
-	cpnot -not "a b c" X Y
+	rmnot -not "a b c" X
+		Input "YeS" to remove, other to stop
+	rmnot -not "a b c" X YeS
+		Use last argument "YeS" as input
 '''
 
 
 operate = 'rm'
-
-excludeall = ['.DS_Store']
 
 
 import sys
@@ -29,29 +30,52 @@ a.remove(b)
 try : a.remove('-r')
 except : pass
 
+try : a[0] = os.path.abspath(os.path.expanduser(a[0]))
+except : raise Exception('Missing targetdir')
+
+if (len(a) == 1) : whichargv = 'usesysargvtogetwhich'
+else : whichargv = a[1]
+a = a[0]
+
 b = b.split(' ')
 while ('' in b) : b.remove('')
 
-try : a[0] = os.path.abspath(os.path.expanduser(a[0]))
-except : raise Exception('Missing startdir and targetdir')
-
 for i in xrange(len(b)) : 
-	b[i] = os.path.abspath(os.path.expanduser(b[i]))
+	b[i] = os.path.abspath(os.path.expanduser(a+'/'+b[i]))
 
 exclude = []
 for i in xrange(len(b)) : exclude += ShellCmd('find '+b[i])
 
-files = ShellCmd('find '+a[0])
-files.remove(a[0])
+files = ShellCmd('find '+a)
+files.remove(a)
 for i in xrange(len(exclude)) : files.remove(exclude[i])
+for i in xrange(len(exclude)) : 
+	n = 0
+	for j in xrange(len(files)) : 
+		if (exclude[i][:len(files[j-n])] == files[j-n]) : 
+			files.pop(j-n)
+			n += 1
+
+if (whichargv == 'usesysargvtogetwhich') : 
+	N = len(str(len(files)))
+	print '\n----------------------------------------------'
+	for i in xrange(len(files)) : 
+		idx = (('%'+str(N)+'i') % i)
+		print idx+'-  '+files[i]
+	print '\n----------------------------------------------'
+	print 'Do you really want to delete all files above ?'
+	print 'Press "YeS" to YES, others to NO\n'
+	which = raw_input()
+else : which = whichargv
+
+if (which != 'YeS') : 
+	print 'Cancel !'
+	exit()
 
 for i in xrange(len(files)) : 
 	start = files[i]
-	if (start.split('/')[-1] in excludeall) : continue
-	target = a[1] + start[len(a[0]):]
-	if (os.path.isdir(start)) : 
-		if (not os.path.exists(target)) : os.mkdir(target)
-	else : 
-		cmd = 'cp '+start+' '+target
-		os.system(cmd)
+	target = a + start[len(a):]
+	if (os.path.exists(target)) : 
+		os.system('rm -rf '+target)
+		print target
 
