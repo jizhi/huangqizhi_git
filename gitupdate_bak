@@ -10,11 +10,9 @@
 import os
 import sys
 import time
-import shutil
-from jizhipy.Paths import Finddir
 
 
-notlist = ['*.DS_Store' '.git/']
+notlist = ['*.DS_Store .git/']
 if (len(sys.argv) > 1) : 
 
 	if (sys.argv[1] == 'init') : 
@@ -27,30 +25,36 @@ if (len(sys.argv) > 1) :
 		os.system('git config --global user.name "'+username+'"')
 		os.system('git config --global user.email '+useremail)
 
-	elif (sys.argv[1] == '-not') : notlist += sys.argv[2:]
+	elif (sys.argv[1] == '-not') : 
+		for i in xrange(len(sys.argv[2:])) : 
+			notlist += ' '+sys.argv[2+i]
+	if (notlist[0] == ' ') : notlist = notlist[1:]
+notlist = '"'+notlist+'"'
 
 
 
 def Backup( nostlist ) : 
-	pwd = os.getcwd()
-	basename = os.path.basename(pwd)
-	tar = '~/.'+basename+'_backup/'
-	tarabs = os.path.abspath(os.path.expanduser(tar))
-	if (os.path.exists(tarabs)) : 
-	#	os.rmdir(tarabs)
-	#	print 'rm 1'
-		shutil.rmtree(tarabs)
-		print 'rm 2'
-	os.mkdir(tarabs)
-	print '\nBackup to  '+tar+'\n'
-	pwdabs, dirs, files = Finddir(pwd, notlist)
-	for i in xrange(len(dirs)) : 
-		try : os.makedirs(tarabs+'/'+dirs[i])
-		except : pass
-	for i in xrange(len(files)) : 
-		try : shutil.copy(pwdabs+'/'+files[i], tarabs+'/'+files[i])
-		except : pass
+	pwd = os.popen('pwd').readlines()[0][:-1].split('/')[-1]
+#	bktime=time.strftime('%Y.%m.%d.%p.%I.%M.%S', time.localtime())
+	pwd = '~/.'+pwd+'_backup/'
+	pwdabs = os.path.abspath(os.path.expanduser(pwd))
+	if (os.path.exists(pwdabs)) : os.system('rm -rf '+pwdabs)
+	os.mkdir(pwdabs)
+	print '\nBackup to  '+pwd+'\n'
+	os.system('cpnot -v -not '+notlist+' . '+pwdabs)
+#	aa = ShellCmd('cpnot -not '+notlist+' . '+pwdabs)
+	exit()
+	print aa
+#	print exclude, files
+	exit()
+	return pwdabs
 
+
+
+def ShellCmd( cmd ) : 
+	strlist = os.popen(cmd).readlines()
+	for i in xrange(len(strlist)): strlist[i] = strlist[i][:-1]
+	return strlist
 
 
 # deleted
@@ -62,6 +66,9 @@ for i in xrange(len(status)) :
 		os.system('git rm '+delete)
 
 
+Backup(notlist)
+exit()
+	
 
 os.system('git status')
 print '-------------------------------------------------------\n'
@@ -70,9 +77,9 @@ print 'Press Y to YES, others to NO'
 a = raw_input()
 
 
-
 if (a.lower() in ['y', 'yes']) : 
-	Backup(notlist)
+	backuppath = Backup(notlist)
+	exit()
 	os.system('git add .')
 	mdtime=time.strftime('%Y/%m/%d %p %I:%M:%S', time.localtime())
 	os.system('git commit -m "Updated at '+mdtime+'"')

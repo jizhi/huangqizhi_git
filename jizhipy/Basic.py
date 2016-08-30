@@ -25,3 +25,4 @@ def Print( a, precision=6, suppress=True ) :
 	np.set_printoptions(precision=precision, suppress=suppress)
 	print a
 
+
