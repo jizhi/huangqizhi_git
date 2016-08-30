@@ -14,7 +14,7 @@ import shutil
 from jizhipy.Paths import Finddir
 
 
-notlist = ['*.DS_Store' '.git/']
+notlist = ['*.DS_Store', '.git/']
 if (len(sys.argv) > 1) : 
 
 	if (sys.argv[1] == 'init') : 
@@ -36,11 +36,7 @@ def Backup( nostlist ) :
 	basename = os.path.basename(pwd)
 	tar = '~/.'+basename+'_backup/'
 	tarabs = os.path.abspath(os.path.expanduser(tar))
-	if (os.path.exists(tarabs)) : 
-	#	os.rmdir(tarabs)
-	#	print 'rm 1'
-		shutil.rmtree(tarabs)
-		print 'rm 2'
+	if (os.path.exists(tarabs)) : shutil.rmtree(tarabs)
 	os.mkdir(tarabs)
 	print '\nBackup to  '+tar+'\n'
 	pwdabs, dirs, files = Finddir(pwd, notlist)
