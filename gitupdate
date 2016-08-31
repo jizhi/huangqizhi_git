@@ -53,9 +53,15 @@ def Backup( nostlist ) :
 delete = []
 status = os.popen('git status').readlines()
 for i in xrange(len(status)) :
-	if (status[i][1:9] == 'deleted:') : 
-		delete = status[i][9:].split(' ')[-1][:-1]
-		os.system('git rm '+delete)
+	n1 = status[i].find('deleted:')
+	if (n1 < 0) : continue
+	for n2 in xrange(len(status[i])) : 
+		if (status[i][n2] not in [' ', '\t']) : break
+	if (n1 != n2) : continue
+	for j in xrange(n1+8, len(status[i])) : 
+		if (status[i][j] not in [' ', '\t']) : break
+	delete = status[i][j:-1]
+	os.system('git rm '+delete)
 
 
 
