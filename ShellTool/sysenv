@@ -27,14 +27,16 @@ def ShellCmd( cmd ) :
 	return strlist
 
 
+
 # Environment
 try : 
 	pm = sys.argv[1].lower()
 	which = sys.argv[2]
 	env = sys.argv[3]
 except : 
-	print 'Error: SysEnvironment, does nothing'
+	print 'Error, must be:    sysenv  -add/-rm  export/alias  envvalue'
 	exit()
+
 envkey = env[:env.index('=')]
 envvalue = env[env.index('=')+1:]
 if (envvalue[0] == "'") : envvalue = '"'+envvalue[1:-1]+'"'
@@ -42,10 +44,6 @@ if (envvalue[0] != '"') : envvalue = '"'+envvalue+'"'
 
 if (which=='export' and envvalue[-2]=='/') : envvalue = envvalue[:-2]+'"' # rm /
 
-
-# .bashrc
-bash = os.path.expanduser('~/.bashrc')
-if (not os.path.exists(bash)) : os.system('touch '+bash)
 
 
 # List
@@ -64,9 +62,14 @@ if (which == 'export') :
 else : envlist = [env2, env4]
 
 
-# Read bash
+
+# Read .bash
+bash = os.path.expanduser('~/.bashrc')
+if (not os.path.exists(bash)) : os.system('touch '+bash)
+
 txt = open(bash).readlines()
 while (txt[-1] == '\n') : txt.pop(-1)
+
 
 
 # Remove
@@ -79,6 +82,7 @@ if (pm.lower() in ['-rm', '-remove', '--rm', '--remove']) :
 	exit()
 
 
+
 # Add
 envexist = False
 for i in xrange(len(envlist)) : 
@@ -86,7 +90,8 @@ for i in xrange(len(envlist)) :
 if (envexist) : exit()
 
 if   (which == 'alias' ) : txt.append('\n'+env2)
-elif (which == 'export') : txt.append('\n'+env5)
+elif (which == 'export') : txt.append('\n'+env5)  # or env6
 
 open(bash, 'w').writelines(txt)
 os.system('source '+bash)
+

@@ -11,7 +11,7 @@ import os
 import sys
 import time
 import shutil
-from jizhipy.Paths import Finddir
+from jizhipy.Path import Finddir
 
 
 notlist = ['*.DS_Store', '.git/']

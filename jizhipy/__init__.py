@@ -23,7 +23,7 @@ from IsType import IsType
 from Jy2K import Jy2K
 from npfmt import npfmt
 from Outdir import Outdir
-from Paths import Escpath, Finddir
+from Path import Escpath, Finddir
 from PoolFor import NprocessCPU, PoolFor
 from ProbabilityDensity import BinsNonuniform, ProbabilityDensity
 from ProgressBar import ProgressBar

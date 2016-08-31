@@ -17,7 +17,7 @@ for i in xrange(len(syspath)) :
 
 usrpath = '~/.python-packages/'
 usrpathpwd = os.path.abspath(os.path.expanduser(usrpath))
-if (not os.path.exists(usrpathpwd)) : os.mkdir(usrpathpwd)
+
 
 whoami = ShellCmd('whoami')[0]
 if (whoami == 'root') : 
@@ -36,7 +36,10 @@ else :
 
 try : which = sys.argv[1].lower()
 except : 
-	print 'Error: must be "setup.py install" or "setup.py uninstall"'
+	print 'Destination: ', dest
+	if (envlist) : print 'Add environment: ', envlist[0]
+	print 'setup.py install    to   install'
+	print 'setup.py uninstall  to uninstall'
 	exit()
 if (which not in ['install', 'uninstall']) : 
 	print 'Error: must be "setup.py install" or "setup.py uninstall"'
@@ -44,21 +47,20 @@ if (which not in ['install', 'uninstall']) :
 
 
 # Files to be handled
-files = ShellCmd('ls')
+files = os.listdir('.')  # include .xxx
 # rm setup.py, ShellCmd.py, *.pyc
 files.remove('setup.py')
-pwd = ShellCmd('pwd')[0].split('/')[-1]
-if (pwd == 'ShellTool') : files.remove('ShellCmd.py')
-elif ('__init__.py' not in files): os.system('touch __init__.py')
+if ('__init__.py' not in files): 
+	os.system('touch __init__.py')
+	files.append('__init__.py')
 n = 0
 for i in xrange(len(files)) : 
-	if (files[i-n][-4:] == '.pyc') : 
+	if (os.path.splitext(files[i-n]) == '.pyc') : 
 		files.pop(i-n)
 		n +=1
 
 
 # install / uninstall
-if (dest[-1] == '/') : dest = dest[:-1]
 if (which == 'uninstall') : 
 	print 'Uninstall from  '+dest
 	opt = '-rm'
@@ -71,13 +73,18 @@ elif (which == 'install') :
 	opt = '-add'
 	dest = os.path.abspath(os.path.expanduser(dest))
 	if (os.path.exists(dest)) : os.system('rm -rf '+dest)
-	os.mkdir(dest)
+	os.makedirs(dest)
 	for i in xrange(len(files)) : 
 		os.system('cp -r '+files[i]+' '+dest+'/')
 
 
 # Add/Remove environment
-if (type(envlist) == str) : envlist = [envlist]
 for i in xrange(len(envlist)) : 
-	os.system('sysenv '+opt+' '+envlist[i])
+	env = envlist[i]
+	n1 = env.find(' ')
+	for n2 in xrange(n1+1, len(env)) : 
+		if (env[n2] != ' ') : break
+	which = env[:n1]
+	env = env[n2:]
+	os.system('sysenv '+opt+' '+which+" '"+env+"'")
 

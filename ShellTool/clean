@@ -55,7 +55,7 @@ for i in xrange(len(exclude)) :
 N = len(str(len(files)))
 print '\n----------------------------------------------'
 for i in xrange(len(files)) : 
-	idx = (('%'+str(N)+'i') % i)
+	idx = (('%'+str(N)+'i') % (i+1))
 	print idx+'-  '+files[i]
 
 print '\n----------------------------------------------'
