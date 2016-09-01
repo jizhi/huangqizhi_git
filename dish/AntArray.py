@@ -1,8 +1,7 @@
-from npfmt import *
-from Raise import *
-from ShellCmd import *
 import h5py
-from IsType import *
+import sys
+import numpy as np
+import jizhipy as jp
 ##################################################
 
 
@@ -78,7 +77,7 @@ class _AntArrayHdf5( object ) :
 		if (hdf5dir == '') : hdf5dir = './'
 		if (hdf5dir[-1]!='/') : hdf5dir += '/'
 		self.hdf5dir = hdf5dir
-		self.hdf5list = ShellCmd('ls '+hdf5dir+'*.hdf5')
+		self.hdf5list = jp.ShellCmd('ls '+hdf5dir+'*.hdf5')
 		ndel = 0
 		for i in xrange(len(self.hdf5list)) : 
 			if (self.hdf5list[i-ndel][-9:] == '_old.hdf5') : 
@@ -90,7 +89,7 @@ class _AntArrayHdf5( object ) :
 		''' whichhdf5: can be absolute path of current hdf5(str), or the order of this hdf5(int)
 		self.hdf5path: current hdf5 
 		self.nhdf5: order of current hdf5 in hdf5list '''
-		istype = IsType()
+		istype = jp.IsType()
 		if (istype.isstr(whichhdf5)) : 
 			self.hdf5path = whichhdf5
 			self.nhdf5 = self.hdf5list.index(hdf5path)
@@ -167,7 +166,7 @@ class AntArray( object ) :
 			or index/number of this file: which = 3
 			or 'transitsource' which is not the Sun
 		'''
-		istype = IsType()
+		istype = jp.IsType()
 		if (istype.isstr(whichhdf5)) : 
 			if (whichhdf5.lower() == 'transitsource') : which = 0
 			else : which = whichhdf5
@@ -219,7 +218,7 @@ class AntArray( object ) :
 		'''
 		#--------------------------------------------------
 		if (maskchannel is None) : maskchannel = []
-		self.Blorder.maskchannel = np.sort(npfmt(maskchannel))
+		self.Blorder.maskchannel = np.sort(jp.npfmt(maskchannel))
 		#--------------------------------------------------
 		if (self.Blorder.maskchannel.size == 0) : 
 			self.Blorder.maskorder = np.array([])
@@ -249,7 +248,7 @@ class AntArray( object ) :
 	def SelectChannel( self, selectchannel=None ) : 
 		''' selectchannel: Start from 1 (not 0) '''
 		if (selectchannel is None) : selectchannel = []
-		selectchannel = npfmt(selectchannel)-1
+		selectchannel = jp.npfmt(selectchannel)-1
 		_maskchannel = np.ones(len(self.Blorder.feedpos)*2, bool)
 		_maskchannel[selectchannel] = False
 		maskchannel = np.arange(len(self.Blorder.feedpos)*2)[_maskchannel]+1
@@ -304,7 +303,7 @@ class AntArray( object ) :
 
 	def Freq( self, freq ) : 
 		''' freqlist, in MHz. 1D '''
-		self.Ant.freq = npfmt(freq).flatten()
+		self.Ant.freq = jp.npfmt(freq).flatten()
 
 	def Noisesourcepos( self, x, y, z ) : 
 		''' Coordinate of the noise source on the hill, meter '''
