@@ -21,6 +21,9 @@ def Outdir( stack, name ) :
 	Outdir(0, 'func') : current function/class
 	Outdir(1, 'func') : 1-upper function/class
 	Outdir(2, 'func') : 2-upper function/class
+
+	return:
+		outdir with '/' at the end
 	'''
 	stack += 1
 	# frame
@@ -48,6 +51,7 @@ def Outdir( stack, name ) :
 	outdir += '_output/'
 	outdirabs = os.path.abspath(os.path.expanduser(outdir))
 	if (not os.path.exists(outdirabs)) : os.mkdir(outdirabs)
-	return [outdir, outdirabs+'/']
+#	return [outdir, outdirabs+'/']
+	return outdir
 
 

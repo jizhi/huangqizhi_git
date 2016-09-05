@@ -12,7 +12,7 @@ from Masking import *
 
 
 print 'Start:', jp.Time(1)
-outdirprint, outdir = jp.Outdir(0, 'file')
+outdir = jp.Outdir(0, 'file')
 
 
 #hdf5dir = '/disk/disk6/SunCygnusA_20160603190723_20160606080722/'
@@ -35,7 +35,7 @@ antarray.WhichHdf5('transitsource')
 
 antarray.SelectVisType('cross1')
 #antarray.SelectChannel([1,3,5,7,11,13,15,17,19,25,29,31])
-antarray.SelectChannel([3,5])
+#antarray.SelectChannel([3,5])
 #antarray.MaskChannel([9,10,21,23,24,27,28])
 
 
@@ -45,6 +45,9 @@ antarray.SelectChannel([3,5])
 masking = Masking(antarray)
 try : masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
 except : pass
+
+masking.See(60, 1, 3, 1)
+exit()
 
 
 freq = 1400

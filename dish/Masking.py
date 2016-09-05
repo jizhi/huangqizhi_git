@@ -1,6 +1,6 @@
-import jizhipy as jp
 import numpy as np
 import multiprocessing
+import jizhipy as jp
 from jizhipy.Plot import *
 ##################################################
 
@@ -88,6 +88,43 @@ class Masking( object ) :
 		self.noisesource.Mask(self.antarray)
 		self.masknoisesource = self.noisesource.mask[:,None,None]
 		self.mask += self.masknoisesource
+
+
+	def See( self, timeper, timetimes, freqper, freqtimes ) : 
+		'''
+		Select the longest East-West baseline
+		(1) Average over frequency, see the fringe
+		(2) Average over time, see the frequency response
+		'''
+		outdir = jp.Outdir(0, 'file')
+		jp.Raise()
+		bl = abs(self.antarray.Blorder.baseline[antarray.visorder][:,0])
+		bl = np.where(bl==bl.max())[0][0]
+		nbl = self.antarray.visorder[bl]
+		strbl = '(%.2f, %.2f, %.2f)' % tuple(self.antarray.Blorder.baseline[nbl][:,0])
+		vist = self.antarray.vis[:,:,nbl].mean(1).flatten()
+		visf = self.antarray.vis[:,:,nbl].mean(0).flatten()
+		t = np.arange(vist.size)
+		f = np.arange(visf.size)
+		plt.figure(figsize=(17,6))
+		plt.subplot(1,2,1)
+		plt.plot(t, vist, 'b-', 't-Amp')
+		plt.plot(t, jp.Smooth(vist, 0, timeper, timetimes), 'r-', label='timeper='+str(round(int(timeper)))+', timetimes='+str(round(int(timetimes))))
+		plt.legend()
+		plt.xlim(t.min(), t.max())
+		plt.xlabel('t-points', size=16)
+		plt.title('t-Amp', size=16)
+		plt.subplot(1,2,2)
+		plt.plot(t, visf, 'b-', 'f-Amp')
+		plt.plot(t, jp.Smooth(visf, 0, freqper, freqtimes), 'r-', label='freqper='+str(round(int(freqper)))+', freqtimes='+str(round(int(freqtimes))))
+		plt.legend()
+		plt.xlim(f.min(), f.max())
+		plt.xlabel('f-points', size=16)
+		plt.title('f-Amp', size=16)
+		plt.suptitle('nbl='+str(nbl)+', bl='+strbl, size=16)
+		plt.savefig(self.outdir+jp.Outdir(1))
+		
+
 
 
 	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, multipool=True ) : 
