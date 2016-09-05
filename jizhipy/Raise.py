@@ -20,7 +20,7 @@ def SysFrame( downstack=0, upstack=None ) :
 	if (downstack == upstack) : upstack += 1
 	#--------------------------------------------------
 	outstr, files, funcs = '', [], []
-	for i in range(upstack, downstack, -1) : 
+	for i in xrange(upstack, downstack, -1) : 
 		f = sys._getframe(i)
 		filename = f.f_code.co_filename
 		lineno   = f.f_lineno

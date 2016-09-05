@@ -73,6 +73,7 @@ class Masking( object ) :
 		shape = list(self.antarray.vis.shape)
 		shape[2] = len(self.antarray.visorder)
 		self.mask = np.zeros(shape, bool)
+		self.outdir = jp.Outdir((None,'file'), (0,'file'))
 
 
 	def MaskNoiseSource( self, pixstart, pixlength, pixperiod ) :
@@ -90,41 +91,77 @@ class Masking( object ) :
 		self.mask += self.masknoisesource
 
 
-	def See( self, timeper, timetimes, freqper, freqtimes ) : 
+	def See( self, freqpix, timelim, timeper, timetimes, timepix, freqlim, freqper, freqtimes, show=False ) : 
 		'''
 		Select the longest East-West baseline
-		(1) Average over frequency, see the fringe
-		(2) Average over time, see the frequency response
+		(1) See the fringe
+		(2) See the frequency response
+
+		freqpix, timepix:
+			Can be int: use this one
+			Or list/tuple/ndarray of int: average over these
+
+		timelim, freqlim:
+			int pair: (int,int) or [int,int] or np.array([int,int])
+			Range of the figure
+			==None means full range
 		'''
-		outdir = jp.Outdir(0, 'file')
-		jp.Raise()
-		bl = abs(self.antarray.Blorder.baseline[antarray.visorder][:,0])
+		# freqpix, timepix
+		freqpix, timepix = np.array(freqpix).round().astype(int), np.array(timepix).round().astype(int)
+		strfreqpix = str(freqpix.min())
+		if (freqpix.size!=1) : strfreqpix += '-'+str(freqpix.max())
+		strtimepix = str(timepix.min())
+		if (timepix.size!=1) : strtimepix += '-'+str(timepix.max())
+		# timelim, freqlim
+		try : 
+			timelim1, timelim2 = np.array(timelim)[:2].round().astype(int)
+			strtimelim = str(timelim1)+'-'+str(timelim2)
+		except : timelim, strtimelim = None, 'None'
+		try : 
+			freqlim1, freqlim2 = np.array(freqlim)[:2].round().astype(int)
+			strfreqlim = str(freqlim1)+'-'+str(freqlim2)
+		except : freqlim, strfreqlim = None, 'None'
+		# per, times
+		timeper = np.array(timeper).round().astype(int).min()
+		timetimes = np.array(timetimes).round().astype(int).min()
+		freqper = np.array(freqper).round().astype(int).min()
+		freqtimes = np.array(freqtimes).round().astype(int).min()
+		# t-Amp
+		bl = abs(self.antarray.Blorder.baseline[self.antarray.visorder][:,0])
 		bl = np.where(bl==bl.max())[0][0]
 		nbl = self.antarray.visorder[bl]
-		strbl = '(%.2f, %.2f, %.2f)' % tuple(self.antarray.Blorder.baseline[nbl][:,0])
-		vist = self.antarray.vis[:,:,nbl].mean(1).flatten()
-		visf = self.antarray.vis[:,:,nbl].mean(0).flatten()
+		strbl = '(%.3f, %.3f, %.3f)' % tuple(self.antarray.Blorder.baseline[nbl])
+		vist = self.antarray.vis[:,freqpix,nbl].real
+		if (len(vist.shape) != 1) : vist = vist.mean(1)
+		# f-Amp
+		na = self.antarray.Blorder.blorder[nbl][0]
+		na = self.antarray.Blorder.Bl2Order(na, na)
+		visf = self.antarray.vis[timepix,:,na].real
+		if (len(visf.shape) != 1) : visf = visf.mean(0)
 		t = np.arange(vist.size)
 		f = np.arange(visf.size)
 		plt.figure(figsize=(17,6))
 		plt.subplot(1,2,1)
-		plt.plot(t, vist, 'b-', 't-Amp')
-		plt.plot(t, jp.Smooth(vist, 0, timeper, timetimes), 'r-', label='timeper='+str(round(int(timeper)))+', timetimes='+str(round(int(timetimes))))
+		plt.plot(t, vist, 'b-', label='t-Amp')
+		plt.plot(t, jp.Smooth(vist, 0, timeper, timetimes), 'r-', label='timeper='+str(timeper)+', timetimes='+str(timetimes))
 		plt.legend()
-		plt.xlim(t.min(), t.max())
+		if (timelim) : plt.xlim(timelim[0], timelim[1])
+		else : plt.xlim(t.min(), t.max())
 		plt.xlabel('t-points', size=16)
 		plt.title('t-Amp', size=16)
 		plt.subplot(1,2,2)
-		plt.plot(t, visf, 'b-', 'f-Amp')
-		plt.plot(t, jp.Smooth(visf, 0, freqper, freqtimes), 'r-', label='freqper='+str(round(int(freqper)))+', freqtimes='+str(round(int(freqtimes))))
+		plt.plot(f, visf, 'b-', label='f-Amp')
+		plt.plot(f, jp.Smooth(visf, 0, freqper, freqtimes), 'r-', label='freqper='+str(freqper)+', freqtimes='+str(freqtimes))
 		plt.legend()
-		plt.xlim(f.min(), f.max())
+		if (freqlim) : plt.xlim(freqlim[0], freqlim[1])
+		else : plt.xlim(f.min(), f.max())
 		plt.xlabel('f-points', size=16)
 		plt.title('f-Amp', size=16)
 		plt.suptitle('nbl='+str(nbl)+', bl='+strbl, size=16)
-		plt.savefig(self.outdir+jp.Outdir(1))
-		
-
+		figname = 'Masking.See_'+strfreqpix+'.'+strtimelim+'.'+str(timeper)+'.'+str(timetimes)+'_'+strtimepix+'.'+strfreqlim+'.'+str(freqper)+'.'+str(freqtimes)+'.png'
+		plt.savefig(self.outdir+figname)
+		if (show) : plt.show()
+		plt.close()
 
 
 	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, multipool=True ) : 

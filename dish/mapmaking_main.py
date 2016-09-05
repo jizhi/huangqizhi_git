@@ -46,13 +46,17 @@ masking = Masking(antarray)
 try : masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
 except : pass
 
-masking.See(60, 1, 3, 1)
-exit()
-
 
 freq = 1400
 nfreq = abs(antarray.Ant.freq-freq)
 nfreq = np.where(nfreq==nfreq.min())[0][0]
+
+
+masking.See(nfreq, None, 60, 1, 10000, None, 7, 1, True)
+masking.See(nfreq, (4000,10000), 60, 1, 10000, None, 7, 1, True)
+jp.Raise()
+
+
 #vis1400 = antarray.vis[:,nfreq,antarray.visorder].flatten()
 #np.save('vis1400_data', vis1400)
 
