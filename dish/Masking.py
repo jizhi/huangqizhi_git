@@ -53,13 +53,14 @@ class NoiseSource( object ) :
 
 
 def _DoMultiprocess_vis( iterable ) : 
-	vis, axis, per, times, nsigmatmp = iterable
-	print 'Start  axis =', axis, '  ', jp.Time(1)
+	vis, axis, per, times, nsigma = iterable
+	print vis.shape, jp.Time(1)
+	exit()
+	if (per<=1 or times<=0) : return False
 	dvis =vis.data -jp.Smooth(vis.data, axis, per, times)
 	sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(axis)**0.5
-	if (axis == 1) : mask = (abs(dvis) > nsigmatmp*sigma[:,None,:])
-	else : mask = (abs(dvis) > nsigmatmp*sigma)
-	print 'End    axis =', axis, '  ', jp.Time(1)
+	if (axis == 1) : mask = (abs(dvis) > nsigma*sigma[:,None,:])
+	else : mask = (abs(dvis) > nsigma*sigma)
 	return mask
 
 
@@ -89,6 +90,7 @@ class Masking( object ) :
 		self.noisesource.Mask(self.antarray)
 		self.masknoisesource = self.noisesource.mask[:,None,None]
 		self.mask += self.masknoisesource
+
 
 
 	def See( self, freqpix, timelim, timeper, timetimes, timepix, freqlim, freqper, freqtimes, show=False ) : 
@@ -164,6 +166,7 @@ class Masking( object ) :
 		plt.close()
 
 
+
 	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, multipool=True ) : 
 		'''
 		timeper, timetimes, freqper, freqtimes:
@@ -210,7 +213,8 @@ class Masking( object ) :
 		else : 
 			stop, nloop = 2, 100
 			if (not threshold) : threshold = 0.001
-			
+
+		multipool = False
 		done, mask = 0, 0
 		while (done < nloop) : 
 			if (done == 0) : 
@@ -221,46 +225,55 @@ class Masking( object ) :
 			else : vis.mask = np.concatenate([mask, mask], 2)
 			masksum, mask = vis.mask.sum()/2, 0
 
-			if (done == 0) : nsigmatmp = nsigma if(nloop==1)else 10
-			elif (done == 1) : 
-				if (nloop == 2) : nsigmatmp = nsigma
-				else : nsigmatmp = 6 if(nsigma<6)else nsigma
-			else : nsigmatmp = nsigma
-
-			y = jp.Smooth(vis.data,0,timeper,timetimes)
-			plt.plot(x, y[:,1,0], 'r-')
-			plt.show()
-			exit()
-
 			if (not multipool) : 
 				#---------- Single thread START ----------
 				# time
-				dvis=vis.data-jp.Smooth(vis.data,0,timeper,timetimes)
-				sigma=np.ma.MaskedArray(dvis**2,vis.mask).mean(0)**0.5
-				vis.mask += (abs(dvis) > nsigmatmp*sigma) # mask
+				if (timeper>=2 and timetimes>=1) : 
+					print '---1'
+					dvis = vis.data-jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=None)
+					print '---2'
+					sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(0)**0.5
+					print '---3'
+					vis.mask += (abs(dvis) > nsigma*sigma) # mask
+					print '---4'
+					print jp.Time(1)
 				# freq
-				dvis=vis.data-jp.Smooth(vis.data,1,freqper,freqtimes)
-				sigma=np.ma.MaskedArray(dvis**2,vis.mask).mean(1)**0.5
-				vis.mask += (abs(dvis) > nsigmatmp*sigma[:,None,:])
+				if (freqper>=2 and freqtimes>=1) : 
+					dvis = vis.data - jp.Smooth(vis.data, 1, freqper, freqtimes, Nprocess=None)
+					print '---5'
+					sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(1)**0.5
+					print '---6'
+					vis.mask += (abs(dvis) > nsigma*sigma[:,None,:])
+					print '---7'
+					print jp.Time(1)
 				#---------- Single thread  END  ----------
 
 			else : 
 				#---------- Pool START ----------
+				# Can't pass very large array (vis) to other progress
+				# Pool method is not good!
 				pool = multiprocessing.Pool(2)
-				mask = pool.map_async(_DoMultiprocess_vis, ((vis, 0, timeper, timetimes, nsigmatmp), (vis, 1, freqper, freqtimes, nsigmatmp))).get(10**10)
+				mask = pool.map_async(_DoMultiprocess_vis, ((vis, 0, timeper, timetimes, nsigma), (vis, 1, freqper, freqtimes, nsigma))).get(10**10)
 				vis.mask += mask[0] + mask[1]
 				#---------- Pool  END  ----------
+
+
+		#	plt.plot(x, vis.real[:,1,0], 'r-')
+		#	plt.show()
+		#	jp.Raise()
 
 			mask = vis.mask[:,:,:Nv/2] + vis.mask[:,:,Nv/2:]
 			done += 1
 			diff = mask.sum()-masksum
 
 			print done, '  ', masksum, '  ', mask.sum(), '  ', diff, '  ', jp.Time(1)
+			jp.Raise()
 			if (stop==2 and diff<=vis.size/2*threshold) : break
 
 		try : self.maskloop = mask - self.masknoisesource
 		except : self.maskloop = mask
 		self.mask += mask
+
 
 
 	def MaskManual( self, maskmanual ) : 

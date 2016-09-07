@@ -1,7 +1,21 @@
 #! /usr/bin/env python
 import jizhipy as jp
+import numpy as np
 
-outdir = jp.Outdir('file', 0)
+a = (np.random.random((12,6))*100).round(3)
+
+b = jp.Smooth(a, 0, 3, 1, Nprocess=1).round(3)
+c = jp.Smooth(a, 0, 3, 1, Nprocess=11).round(3)
+
+print a
+print
+print b
+print
+print c
+print
+d = abs(b-c)
+print d.max()
+
 
 
 

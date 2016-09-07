@@ -52,9 +52,9 @@ nfreq = abs(antarray.Ant.freq-freq)
 nfreq = np.where(nfreq==nfreq.min())[0][0]
 
 
-masking.See(nfreq, None, 60, 1, 10000, None, 7, 1, True)
-masking.See(nfreq, (4000,10000), 60, 1, 10000, None, 7, 1, True)
-jp.Raise()
+#masking.See(nfreq, None, 60, 1, 10000, None, 7, 1, True)
+#masking.See(nfreq, (4000,10000), 60, 1, 10000, None, 7, 1, True)
+#jp.Raise()
 
 
 #vis1400 = antarray.vis[:,nfreq,antarray.visorder].flatten()
@@ -71,9 +71,11 @@ jp.Raise()
 #nsigma, nloop, threshold, multipool = 4, 4, 0.001, True
 #nsigma, nloop, threshold, multipool = 4, 3, 0.001, True
 #nsigma, nloop, threshold, multipool = 4, 2, 0.001, True
-nsigma, nloop, threshold, multipool = 4, 1, 0.001, False
+nsigma, nloop, threshold, multipool = 4, 1, 0.001, True
 print 'nsigma='+str(nsigma)+'   nloop='+str(nloop)+'   threshold='+str(threshold)+'   multipool='+str(multipool)
 masking.MaskLoop(nsigma=nsigma, nloop=nloop, threshold=threshold, multipool=multipool)
+jp.Raise()
+
 
 maskmax = masking.mask.sum(0)[:,0]
 nfreq_maskmax = np.where(maskmax==maskmax.max())[0][0]
