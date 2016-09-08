@@ -37,12 +37,11 @@ def _Multiprocess_Smooth( iterable ) :
 		else : ai = array[i-lw/2:i+lw/2+1]
 		b[i] = (ai * weight).sum(0)
 	if (dnwa) : b = b[dnwa1:-dnwa2]
-	print 'Smoot-Multiprocess:', array.shape
 	return b
 
 
 
-def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=None ) : 
+def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=1 ) : 
 	'''
 	Smooth/Average/Mean array along one axis.
 	We can also use spsn.convolve() to do this, but spsn.convolve() will cost much more memory and time, so, the function written here is the best and fastest.

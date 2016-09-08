@@ -31,12 +31,14 @@ brightsource = jp.BrightSource()
 
 
 antarray = AntArray(hdf5dir)
+
 antarray.WhichHdf5('transitsource')
 
 antarray.SelectVisType('cross1')
-#antarray.SelectChannel([1,3,5,7,11,13,15,17,19,25,29,31])
-#antarray.SelectChannel([3,5])
-#antarray.MaskChannel([9,10,21,23,24,27,28])
+antarray.SelectChannel([3,5,7])
+
+#antarray.SelectVisType('auto1')
+#antarray.SelectChannel([3])
 
 
 ##################################################
@@ -57,23 +59,9 @@ nfreq = np.where(nfreq==nfreq.min())[0][0]
 #jp.Raise()
 
 
-#vis1400 = antarray.vis[:,nfreq,antarray.visorder].flatten()
-#np.save('vis1400_data', vis1400)
-
-#nsigma, nloop, threshold, multipool = 5, 20, 0.001, False
-#nsigma, nloop, threshold, multipool = 5, None, 0.001, False
-#nsigma, nloop, threshold, multipool = 4, None, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 9, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 8, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 7, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 6, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 5, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 4, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 3, 0.001, True
-#nsigma, nloop, threshold, multipool = 4, 2, 0.001, True
-nsigma, nloop, threshold, multipool = 4, 1, 0.001, True
-print 'nsigma='+str(nsigma)+'   nloop='+str(nloop)+'   threshold='+str(threshold)+'   multipool='+str(multipool)
-masking.MaskLoop(nsigma=nsigma, nloop=nloop, threshold=threshold, multipool=multipool)
+nsigma, nloop, threshold, Nprocess = 4, 10, 0.001, None
+print 'nsigma='+str(nsigma)+'   nloop='+str(nloop)+'   threshold='+str(threshold)
+masking.MaskLoop(nsigma=nsigma, nloop=nloop, threshold=threshold, Nprocess=Nprocess)
 jp.Raise()
 
 

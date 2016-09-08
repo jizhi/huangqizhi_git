@@ -5,6 +5,7 @@ from jizhipy.Plot import *
 ##################################################
 
 
+
 class NoiseSource( object ) : 
 
 
@@ -47,21 +48,11 @@ class NoiseSource( object ) :
 		return self.nmask, self.mask
 
 
+
 ##################################################
 ##################################################
 ##################################################
 
-
-def _DoMultiprocess_vis( iterable ) : 
-	vis, axis, per, times, nsigma = iterable
-	print vis.shape, jp.Time(1)
-	exit()
-	if (per<=1 or times<=0) : return False
-	dvis =vis.data -jp.Smooth(vis.data, axis, per, times)
-	sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(axis)**0.5
-	if (axis == 1) : mask = (abs(dvis) > nsigma*sigma[:,None,:])
-	else : mask = (abs(dvis) > nsigma*sigma)
-	return mask
 
 
 class Masking( object ) : 
@@ -167,7 +158,7 @@ class Masking( object ) :
 
 
 
-	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, multipool=True ) : 
+	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, Nprocess=None ) : 
 		'''
 		timeper, timetimes, freqper, freqtimes:
 			Use for smooth()
@@ -183,92 +174,76 @@ class Masking( object ) :
 		threshold:
 			masknew.sum()-maskold.sum() < vis.size*threshold, stop
 
-		if nloop!=None, use nloop and don't use threshold
-		elif nloop==None but threshold!=None, use threshold
-		elif nloop==None and threshold==None, stop with threshold=0.001
+		If nloop=None, use threshold
+		If threshold=None, use nloop
+		If nloop!=None and threshold!=None, use one that satisfies first
+		If nloop==None and threshold==None, set nloop=10, threshold=0.001
 
-		multipool:
-			True/False
+		Nprocess:
+			For jp.Smooth(Nprocess=)
 
 		return self.maskloop
 		Total mask: self.maskloop + self.masknoisesource
 		'''
 		# Read the whole real data as MaskedArray
-		print 'antarray.vis[:,:,visorder]', jp.Time(1)
+		vistype = self.antarray.vistype[:-1]
 		vis = self.antarray.vis[:,:,self.antarray.visorder]
+		if (vistype == 'auto') : vis = vis.real
 		if (self.antarray.visorder.size==1) : vis = vis[:,:,None]
 		vis = np.ma.MaskedArray(vis, self.mask)
-		print 'antarray.vis[:,:,visorder]  -->  END', jp.Time(1)
 		# Convenient to Smooth(), using non-masked array is much faster than masked array
-	#	vis = vis[:16600, 307-20:307+20]  # PAON4 test
-	#	vis = vis[:,:3]  # PAON4 test
-		vis.data[vis.mask] = vis.mean() # data
+		# ntimefringe=0-16600, nfreq1400=307
+		if (self.mask.sum()>0) : vis.data[vis.mask] = vis.mean()
+		# If auto-real, cross-complex
 
 		x = np.arange(vis.shape[0])
-		plt.plot(x, vis.real[:,1,0], 'b-')
+		nf = 307
+		plt.plot(x, vis[:,nf,1], 'b-')
 
 		if (nloop) : 
-			stop, threshold = 1, 0
+			try : nloop+0
+			except : nloop = 1
 			if (nloop <= 0) : nloop = 1
-		else : 
-			stop, nloop = 2, 100
-			if (not threshold) : threshold = 0.001
-
+		if (threshold) : 
+			try : threshold+0
+			except : threshold = 0.001
+			if (threshold < 0) : threshold = 0
+		if (nloop and not threshold) : threshold = 0
+		elif (not nloop and threshold) : nloop = 100
+		elif (not nloop and not threshold) : nloop, threshold = 10, 0.001
+		#--------------------------------------------------
 		multipool = False
 		done, mask = 0, 0
 		while (done < nloop) : 
-			if (done == 0) : 
-				mask = np.concatenate([vis.mask, vis.mask], 2)
-				vis=np.concatenate([vis.data.real, vis.data.imag],2)
-				vis = np.ma.MaskedArray(vis, mask)
-				Nv = vis.shape[-1]
-			else : vis.mask = np.concatenate([mask, mask], 2)
-			masksum, mask = vis.mask.sum()/2, 0
-
-			if (not multipool) : 
-				#---------- Single thread START ----------
-				# time
-				if (timeper>=2 and timetimes>=1) : 
-					print '---1'
-					dvis = vis.data-jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=None)
-					print '---2'
-					sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(0)**0.5
-					print '---3'
-					vis.mask += (abs(dvis) > nsigma*sigma) # mask
-					print '---4'
-					print jp.Time(1)
-				# freq
-				if (freqper>=2 and freqtimes>=1) : 
-					dvis = vis.data - jp.Smooth(vis.data, 1, freqper, freqtimes, Nprocess=None)
-					print '---5'
-					sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(1)**0.5
-					print '---6'
-					vis.mask += (abs(dvis) > nsigma*sigma[:,None,:])
-					print '---7'
-					print jp.Time(1)
-				#---------- Single thread  END  ----------
-
-			else : 
-				#---------- Pool START ----------
-				# Can't pass very large array (vis) to other progress
-				# Pool method is not good!
-				pool = multiprocessing.Pool(2)
-				mask = pool.map_async(_DoMultiprocess_vis, ((vis, 0, timeper, timetimes, nsigma), (vis, 1, freqper, freqtimes, nsigma))).get(10**10)
-				vis.mask += mask[0] + mask[1]
-				#---------- Pool  END  ----------
-
-
-		#	plt.plot(x, vis.real[:,1,0], 'r-')
-		#	plt.show()
-		#	jp.Raise()
-
-			mask = vis.mask[:,:,:Nv/2] + vis.mask[:,:,Nv/2:]
+			masksum = vis.mask.sum()
+			#---------- time ----------
+			if (timeper>=2 and timetimes>=1) : 
+				dvis = vis.data - jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=Nprocess)
+				if (vistype == 'cross') : 
+					dvis.real, dvis.imag=dvis.real**2, dvis.imag**2
+					sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(0)
+					vis.mask += (dvis.real>nsigma**2*sigma2.real) + (dvis.imag>nsigma**2*sigma2.imag) # mask
+				elif (vistype == 'auto') : 
+					dvis = dvis**2
+					sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(0)
+					vis.mask += (dvis > nsigma**2*sigma2) # mask
+			#--------------------------------------------------
+			#---------- freq ----------
+			if (freqper>=2 and freqtimes>=1 and vistype=='auto'):
+				dvis = vis.data - jp.Smooth(vis.data, 1, freqper, freqtimes, Nprocess=Nprocess)
+				dvis = dvis**2
+				sigma2 = np.ma.MaskedArray(dvis, vis.mask).mean(1)
+				vis.mask += (dvis > nsigma**2*sigma2[:,None,:])
+			#--------------------------------------------------
 			done += 1
-			diff = mask.sum()-masksum
+			if (vis.mask.sum()-masksum <= vis.size*threshold): break
+			print done, '  ', masksum, '  ', vis.mask.sum(), '  ', vis.mask.sum()-masksum, '  ', jp.Time(1)
 
-			print done, '  ', masksum, '  ', mask.sum(), '  ', diff, '  ', jp.Time(1)
-			jp.Raise()
-			if (stop==2 and diff<=vis.size/2*threshold) : break
+
+		plt.plot(x, vis[:,nf,1], 'r-')
+		plt.show()
+		jp.Raise()
+
 
 		try : self.maskloop = mask - self.masknoisesource
 		except : self.maskloop = mask
@@ -286,3 +261,118 @@ class Masking( object ) :
 ##################################################
 ##################################################
 
+#	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, multipool=True ) : 
+#		'''
+#		timeper, timetimes, freqper, freqtimes:
+#			Use for smooth()
+#			In order to set a good per+times, you can try by hand and judge by eyes (plot and look at around the fringe/source)
+#
+#		nsigma:
+#			Calculate sigma of each freq and vis along time (sigma.shape=(Nf, Nv)), value > nsigma*sigma will be considered as RFI
+#
+#		nloop:
+#			Each time we will mask the value>nsigma*sigma, and then recalculate a new sigma, and do again. nloop set how many times we will do.
+#			If set nloop=None, stop with threshold
+#
+#		threshold:
+#			masknew.sum()-maskold.sum() < vis.size*threshold, stop
+#
+#		if nloop!=None, use nloop and don't use threshold
+#		elif nloop==None but threshold!=None, use threshold
+#		elif nloop==None and threshold==None, stop with threshold=0.001
+#
+#		multipool:
+#			True/False
+#
+#		return self.maskloop
+#		Total mask: self.maskloop + self.masknoisesource
+#		'''
+#		# Read the whole real data as MaskedArray
+#		vis = self.antarray.vis[:,:,self.antarray.visorder]
+#		if (self.antarray.vistype[:-1] == 'auto') : vis = vis.real
+#
+#		if (self.antarray.visorder.size==1) : vis = vis[:,:,None]
+#		vis = np.ma.MaskedArray(vis, self.mask)
+#		# Convenient to Smooth(), using non-masked array is much faster than masked array
+#		# ntimefringe=0-16600, nfreq1400=307
+#	#	vis = vis[:16600, 307-20:307+20]
+#		vis.data[vis.mask] = vis.mean() # data
+#
+#		# If vistype=='cross', use auto to mask freq axis
+#		if (self.antarray.vistype == 'cross1') : 
+#			nauto = self.antarray.Blorder.auto1
+#		elif (self.antarray.vistype == 'cross2') : 
+#			nauto = self.antarray.Blorder.auto2
+#		if (self.antarray.vistype[:-1] == 'cross') : 
+#			auto = self.antarray.vis[:,:,nauto].real  # auto-real
+#			if (nauto.size == 1) : auto = auto[:,:,None]
+#
+#		x = np.arange(vis.shape[0])
+#		nf = 1 #307
+#		plt.plot(x, vis.real[:,nf,0], 'b-')
+#
+#		if (nloop) : 
+#			try : nloop+0
+#			except : nloop = 1
+#			if (nloop <= 0) : nloop = 1
+#		if (threshold) : 
+#			try : threshold+0
+#			except : threshold = 0.001
+#			if (threshold < 0) : threshold = 0
+#		if (nloop and not threshold) : threshold = 0
+#		elif (not nloop and threshold) : nloop = 100
+#		elif (not nloop and not threshold) : nloop, threshold = 10, 0.001
+#
+#		multipool = False
+#		done, mask = 0, 0
+#		while (done < nloo) : 
+#			if (done == 0) : 
+#				mask = np.concatenate([vis.mask, vis.mask], 2)
+#				vis=np.concatenate([vis.data.real, vis.data.imag],2)
+#				vis = np.ma.MaskedArray(vis, mask)
+#				Nv = vis.shape[-1]
+#			else : vis.mask = np.concatenate([mask, mask], 2)
+#			masksum, mask = vis.mask.sum()/2, 0
+#
+#			if (not multipool) : 
+#				#---------- Single thread START ----------
+#				# time uses cross
+#				if (timeper>=2 and timetimes>=1) : 
+#					dvis = vis.data - jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=None)
+#					sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(0)**0.5  # cost most of time
+#					vis.mask += (abs(dvis) > nsigma*sigma) # mask
+#
+#				# freq, use auto
+#				if (freqper>=2 and freqtimes>=1) : 
+#					if (self.antarray.vistype[:-1] == 'cross') : 
+#						dvis = auto.data - jp.Smooth(auto.data, 1, freqper, freqtimes, Nprocess=None)
+#					else : dvis = vis.data - jp.Smooth(vis.data, 1, freqper, freqtimes, Nprocess=None)
+#				#	sigma = np.ma.MaskedArray(dvis**2, vis.mask).mean(1)**0.5  # cost most of time
+#					sigma = np.ma.MaskedArray(dvis, vis.mask).std(1)  # cost most of time
+#					vis.mask += (abs(dvis) > nsigma*sigma[:,None,:])
+#				#---------- Single thread  END  ----------
+#
+#			else : 
+#				#---------- Pool START ----------
+#				# Can't pass very large array (vis) to other progress
+#				# Pool method is not good!
+#				pool = multiprocessing.Pool(2)
+#				mask = pool.map_async(_DoMultiprocess_vis, ((vis, 0, timeper, timetimes, nsigma), (vis, 1, freqper, freqtimes, nsigma))).get(10**10)
+#				vis.mask += mask[0] + mask[1]
+#				#---------- Pool  END  ----------
+#
+#			mask = vis.mask[:,:,:Nv/2] + vis.mask[:,:,Nv/2:]
+#			done += 1
+#
+#			print done, '  ', masksum, '  ', mask.sum(), '  ', mask.sum()-masksum, '  ', jp.Time(1)
+#			if (mask.sum()-masksum <= vis.size/2*threshold) : break
+#
+#
+#		plt.plot(x, vis.real[:,nf,0], 'r-')
+#		plt.show()
+#		jp.Raise()
+#
+#
+#		try : self.maskloop = mask - self.masknoisesource
+#		except : self.maskloop = mask
+#		self.mask += mask

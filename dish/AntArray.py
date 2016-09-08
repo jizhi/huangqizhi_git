@@ -136,7 +136,7 @@ class AntArray( object ) :
 			= [WhichHdf5(), MaskChannel(), SelectChannel(), SelectVisType(), Blorder, Hdf5, Ant, vis, vistype, visorder]
 
 		self.Blorder.__dict__.keys() 
-			= [blorder, auto, cross1, cross2, feedpos, channelpos, baseline, Bl2Order(), Order2Bl(), maskchannel, maskorder, selectchannel, selectorder]
+			= [blorder, auto1, auto2, cross1, cross2, cross3, feedpos, channelpos, baseline, Bl2Order(), Order2Bl(), maskchannel, maskorder, selectchannel, selectorder]
 	
 		self.Hdf5.__dict__.keys() 
 			= [hdf5dir, hdf5list, hdf5path, nhdf5, obstime, sec1970,  nhdf5transit, transittimelocal, transittimetotal]
