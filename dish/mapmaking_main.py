@@ -10,58 +10,114 @@ from Masking import *
 #from MapMaking import *
 ##################################################
 
-
-print 'Start:', jp.Time(1)
-outdir = jp.Outdir(0, 'file')
-
-
-#hdf5dir = '/disk/disk6/SunCygnusA_20160603190723_20160606080722/'
-#pixstart, pixlength, pixperiod = 2324, 20, 2564-2324
+#
+#print 'Start:', jp.Time(1)
+#outdir = jp.Outdir(0, 'file')
+#
+#
+##hdf5dir = '/disk/disk6/SunCygnusA_20160603190723_20160606080722/'
+##pixstart, pixlength, pixperiod = 2324, 20, 2564-2324
+##sourcename = 'CygA'
+##brightsource = jp.BrightSource()
+#
+#
+##hdf5dir = '~/study/lal/paon4/paon4_data/CygA/CygA665S1dec15_all-1_ac_0-4095-8'
+#hdf5dir = '/project/huangqizhi/paon4_data/CygA/CygA665S1dec15_all-1_ac_0-4095-8'
 #sourcename = 'CygA'
 #brightsource = jp.BrightSource()
-
-
-#hdf5dir = '~/study/lal/paon4/paon4_data/CygA/CygA665S1dec15_all-1_ac_0-4095-8'
-hdf5dir = '/project/huangqizhi/paon4_data/CygA/CygA665S1dec15_all-1_ac_0-4095-8'
-sourcename = 'CygA'
-brightsource = jp.BrightSource()
-
-
-##################################################
-
-
-antarray = AntArray(hdf5dir)
-
-antarray.WhichHdf5('transitsource')
-
-antarray.SelectVisType('cross1')
-antarray.SelectChannel([3,5,7])
-
+#
+#
+###################################################
+#
+#
+#antarray = AntArray(hdf5dir)
+#
+#antarray.WhichHdf5('transitsource')
+#
+##antarray.SelectVisType('cross1')
+##antarray.SelectChannel([3,5])
+#
 #antarray.SelectVisType('auto1')
 #antarray.SelectChannel([3])
+#
+#
+###################################################
+#
+#
+#masking = Masking(antarray)
+#try : masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
+#except : pass
+#
+#
+#freq = 1400
+#nfreq = abs(antarray.Ant.freq-freq)
+#nfreq = np.where(nfreq==nfreq.min())[0][0]
+#
+#
+##masking.See(nfreq, None, 60, 1, 10000, None, 7, 1, True)
+##masking.See(nfreq, (4000,10000), 60, 1, 10000, None, 7, 1, True)
+##jp.Raise()
+#
+#
+#nsigma, nloop, threshold, Nprocess = 4, 10, 0.001, None
+#print 'nsigma='+str(nsigma)+'   nloop='+str(nloop)+'   threshold='+str(threshold)
+#masking.MaskLoop(timeper=0, freqper=5, nsigma=nsigma, nloop=nloop, threshold=threshold, Nprocess=Nprocess, verbose=True)
+#
+#
+##mask = masking.mask.copy()
+##if (len(mask.shape) == 3) : mask = mask[:,200:,0].sum(-1)
+##elif (len(mask.shape) == 2) : mask = mask[:,200:].sum(-1)
+##n = np.where(mask==mask.max())[0][0]
+#n = 69104
+#
+#
+#a = antarray.vis[n,:,antarray.visorder].real.flatten()
+##x = np.linspace(1250, 1500, a.size)
+#x = np.arange(a.size)
+#
+#mask = masking.mask[n,:].flatten()
+#np.save('auto', a)
+#np.save('auto_mask', mask)
+a = np.load('auto.npy')
+mask = np.load('auto_mask.npy')
+x = np.linspace(1250, 1500, a.size)
 
 
-##################################################
+plt.figure(figsize=(12,6))
+plt.plot(x, a, 'b-', label='Frequency response')
+plt.plot(x, np.ma.MaskedArray(a, mask), 'r-', label='Masking RFI')
+plt.legend()
+plt.xlim(x.min(), x.max())
+plt.xlabel(r'$\nu$ [MHz]', size=16)
+plt_axes('x', 'both', [25, 5])
+plt.ylabel('Amp [A.U.]', size=16)
+plt.title('CygA665S1dec15, frequency response, 3H', size=16)
+plt.show()
 
 
-masking = Masking(antarray)
-try : masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
-except : pass
+
+#nf = 307
+#a = antarray.vis[:,nf,antarray.visorder]
+#x = np.arange(a.size)
+#
+#np.save('a.imag', a.imag)
+#np.save('mask', masking.mask[:,nf])
+#
+#plt.figure(figsize=(12,6))
+#plt.plot(x, a.imag, 'b-', label='Observation data')
+#plt.plot(x, np.ma.MaskedArray(a.imag, masking.mask[:,nf]), 'r-', label='Masking RFI')
+#plt.legend()
+#plt.xlim(x.min(), x.max())
+#plt.ylabel('Amp [A.U.]', size=16)
+#plt.title('CygA665S1dec15, 2H-3H, 1400MHz', size=16)
+#plt.show()
+jp.Raise()
 
 
-freq = 1400
-nfreq = abs(antarray.Ant.freq-freq)
-nfreq = np.where(nfreq==nfreq.min())[0][0]
 
 
-#masking.See(nfreq, None, 60, 1, 10000, None, 7, 1, True)
-#masking.See(nfreq, (4000,10000), 60, 1, 10000, None, 7, 1, True)
-#jp.Raise()
 
 
-nsigma, nloop, threshold, Nprocess = 4, 10, 0.001, None
-print 'nsigma='+str(nsigma)+'   nloop='+str(nloop)+'   threshold='+str(threshold)
-masking.MaskLoop(nsigma=nsigma, nloop=nloop, threshold=threshold, Nprocess=Nprocess)
 jp.Raise()
 
 

@@ -30,6 +30,7 @@ from ProgressBar import ProgressBar
 from Raise import SysFrame, Raise
 from Repetition import Repetition
 from ResetMasked import ResetMasked
+from SciNot import Print, SciNot
 from ShellCmd import mkdir, ShellCmd
 from Smooth import SmoothWeight, Smooth
 from Sort import Sort

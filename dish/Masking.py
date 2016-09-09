@@ -158,7 +158,7 @@ class Masking( object ) :
 
 
 
-	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, Nprocess=None ) : 
+	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, Nprocess=None, verbose=False ) : 
 		'''
 		timeper, timetimes, freqper, freqtimes:
 			Use for smooth()
@@ -189,28 +189,25 @@ class Masking( object ) :
 		vistype = self.antarray.vistype[:-1]
 		vis = self.antarray.vis[:,:,self.antarray.visorder]
 		if (vistype == 'auto') : vis = vis.real
-		if (self.antarray.visorder.size==1) : vis = vis[:,:,None]
+		if (len(vis.shape) == 2) : vis = vis[:,:,None]
 		vis = np.ma.MaskedArray(vis, self.mask)
 		# Convenient to Smooth(), using non-masked array is much faster than masked array
-		# ntimefringe=0-16600, nfreq1400=307
+		# ntimefringe=0-16600, nfreq1400=307 for PAON4
 		if (self.mask.sum()>0) : vis.data[vis.mask] = vis.mean()
 		# If auto-real, cross-complex
-
-		x = np.arange(vis.shape[0])
-		nf = 307
-		plt.plot(x, vis[:,nf,1], 'b-')
-
+		#--------------------------------------------------
 		if (nloop) : 
-			try : nloop+0
+			try : nloop = int(round(nloop))
 			except : nloop = 1
 			if (nloop <= 0) : nloop = 1
 		if (threshold) : 
 			try : threshold+0
 			except : threshold = 0.001
 			if (threshold < 0) : threshold = 0
-		if (nloop and not threshold) : threshold = 0
-		elif (not nloop and threshold) : nloop = 100
-		elif (not nloop and not threshold) : nloop, threshold = 10, 0.001
+		if (nloop and not threshold) : threshold, strthreshold = 0, 'None'
+		elif (not nloop and threshold) : nloop, strnloop = 100, 'None'
+		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
+		else : nloop, threshold
 		#--------------------------------------------------
 		multipool = False
 		done, mask = 0, 0
@@ -236,15 +233,10 @@ class Masking( object ) :
 				vis.mask += (dvis > nsigma**2*sigma2[:,None,:])
 			#--------------------------------------------------
 			done += 1
+			if (verbose) : 
+				print 'done='+str(done), '  before='+str(masksum), '  after='+str(vis.mask.sum()), '  difference='+str(vis.mask.sum()-masksum), '  ', jp.Time(1)
 			if (vis.mask.sum()-masksum <= vis.size*threshold): break
-			print done, '  ', masksum, '  ', vis.mask.sum(), '  ', vis.mask.sum()-masksum, '  ', jp.Time(1)
-
-
-		plt.plot(x, vis[:,nf,1], 'r-')
-		plt.show()
-		jp.Raise()
-
-
+		#--------------------------------------------------
 		try : self.maskloop = mask - self.masknoisesource
 		except : self.maskloop = mask
 		self.mask += mask

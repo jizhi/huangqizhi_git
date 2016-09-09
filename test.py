@@ -1,71 +1,108 @@
 #! /usr/bin/env python
 import jizhipy as jp
 import numpy as np
+from jizhipy.Plot import *
 
-a = (np.random.random((12,6))*100).round(3)
+color = plt_color(16)
 
-b = jp.Smooth(a, 0, 3, 1, Nprocess=1).round(3)
-c = jp.Smooth(a, 0, 3, 1, Nprocess=11).round(3)
-
-print a
-print
-print b
-print
-print c
-print
-d = abs(b-c)
-print d.max()
+a = np.arange(len(color))
+b = a*0+1
+for i in xrange(len(color)) : 
+	plt.plot([a[i]], [b[i]], color=color[i], ls='', marker='o', markersize=10)
+plt.savefig('color.png')
 
 
 
 
-
-#import os
-#
-#
-#def Abspath( path ) : 
-#	''' 
-#	Convert to abspath and check whether exists 
-#	In Linux:
-#		in shell and GUI
-#		(1) Filename can't contain "/" but can contain ":"
-#		(2) ":" will be shown as ":"
-#	In Mac OSX:
-#		in shell: 
-#			(1) Filename can't contain "/" but can contain ":"
-#			(2) ":" will be shown as ":", like in Linux
-#		in GUI:
-#			(1) Filename can't contain ":" but can contain "/"
-#			(2) "/" will be shown as "/" in GUI, but will be shown as ":" in shell
+#def Print( array, precision=6, suppress=True ) : 
 #	'''
-#	escchar = '()[]{}<>`!@$^&*=\|;,? :'
-#	which = ''
-#	for i in xrange(len(escchar)) : 
-#		if (escchar[i] in path or escchar[i] in ["'",'"']) : 
-#			which = escchar[i]
-#			break
-#	if (which != '') : 
-#		n = path.find(which)
-#		pathesc, pathtmp = list(path), ''
-#		if (path[n-1] != '\\') : 
-#			for i in xrange(len(path)) : 
-#				if (pathesc[i] in escchar) : pathesc[i] = '\\' + pathesc[i]
-#			for i in xrange(len(pathesc)) : pathtmp += pathesc[i]
-#			pathesc = pathtmp
-#		else : 
-#			while ('\\' in pathesc) : pathesc.remove('\\')
-#			for i in xrange(len(pathesc)) : pathtmp += pathesc[i]
-#			pathesc = path
-#			path = pathtmp
-#	else : pathesc = path
-#	path = os.path.abspath(os.path.expanduser(path))
-#	pathesc = os.path.abspath(os.path.expanduser(pathesc))
-#	exists = os.path.exists(path)
-#	return [path, pathesc, exists]
+#	Format the printing of np.array
+#	suppress:
+#		=False, print 1.23e+4
+#		=True,  print 12340.
+#	'''
+#	array = np.array(array)
+#	precision = int(round(precision))
+#	if (not suppress) : 
+#		fmt = '%i.%ie' % (8+precision, precision)
+#		formatter = {'all': lambda x: format(x, fmt)}
+#	#	formatter = {'all': lambda x: (('%'+fmt) % x)}
+#	else : formatter = None
+#	default = np.get_printoptions()
+#	np.set_printoptions(precision=precision, suppress=suppress, formatter=formatter)
+#	print array
+#	np.set_printoptions(**default)
 #
 #
 #
+#array = np.array([-12.34, -0.123, -0.000034, 0, 0.0345, 0.00012, 0.00001, 0.000009, 56.78, -1234.56]).reshape(5, 2)
 #
 #
-#a = jp.ShellCmd('find .')
-#print a
+#Print(array, suppress=True)
+#print
+#
+#valid, idx = jp.SciNot(array)
+#print valid
+#print idx
+#
+#print(array)
+#print
+#
+#
+##import numpy as np
+##
+##
+##def Print( a, precision=6, suppress=True ) : 
+##	'''
+##	Format the printing of np.array
+##	suppress:
+##		=False, print 1.23e+4
+##		=True,  print 12340.
+##	'''
+##	precision = int(round(precision))
+##	if (not suppress) : formatter = {'all': lambda x: format(x, '.'+str(precision)+'e')}
+##	else : formatter = None
+##	default = np.get_printoptions()
+##	np.set_printoptions(precision=precision, suppress=suppress, formatter=formatter)
+##	print a
+##	np.set_printoptions(**default)
+##
+##
+##
+##Print(array)
+##
+##
+##
+##shape = array.shape
+##array = array.flatten()
+##
+### Get the sign
+##sign = np.sign(array)  # sign(0)=0
+##
+### Convert to abs
+##array = abs(array)
+##
+### because sign(0)=0, convert 0 to 1
+##array[array==0] = 1
+##
+##nlarge, nsmall = (array>=1), (array<1)  # bool, not int
+##
+### Use log10 to get the power index
+##idxlarge = np.log10(array[nlarge]).astype(int)
+##
+##scalesmall = int(round(np.log10(array[nsmall].min())))-2
+##array[nsmall] /= 10.**scalesmall
+##idxsmall = np.log10(array[nsmall]).astype(int) + scalesmall
+##array[nsmall] *= 10.**scalesmall
+##
+##idx = np.zeros(array.size, int)
+##idx[nlarge], idx[nsmall] = idxlarge, idxsmall
+##
+##valid = sign * (array / 10.**idx)
+##
+##valid, idx = valid.reshape(shape), idx.reshape(shape)
+##
+##Print(valid)
+##Print(idx)
+##
+##

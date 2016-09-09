@@ -1,6 +1,7 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter 
+from scipy.interpolate import interp1d
 from Basic import *
 from ShellCmd import *
 
@@ -265,9 +266,9 @@ def plt_color( N, r2b=False, k=1 ) :
 	#--------------------------------------------------
 	r, g, b = npfmt([r,g,b])*k
 	x = np.linspace(0, 1, r.size)
-	fr = interpolate.interp1d(x, r)
-	fg = interpolate.interp1d(x, g)
-	fb = interpolate.interp1d(x, b)
+	fr = interp1d(x, r)
+	fg = interp1d(x, g)
+	fb = interp1d(x, b)
 	x = np.linspace(0, 1, N)
 	r, g, b = fr(x), fg(x), fb(x)
 	color = []

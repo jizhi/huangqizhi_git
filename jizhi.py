@@ -5760,29 +5760,6 @@ def plt_plot_xperiod( x, period, axes_major_times, fmt='%i' ) :
 ##################################################
 
 
-def SciNot( value ) :
-	'''
-	scientific notation.
-
-	value can be scale, list, n-D array
-	
-	Return [a, n], value = a * 10**n
-	'''
-	value = npfmt(value)
-	if (value.dtype.name[:3] == 'int') : value = value*1.
-	shape = value.shape
-	value = value.flatten()
-	a = value*0
-	n = value.astype(int)*0
-	for j in range(value.size) : 
-		v = ('%e' % value[j])
-		for i in range(len(v)-1, 0, -1) : 
-			if (v[i] == 'e') : break
-		a[j] = float(v[:i])
-		n[j] = int(v[i+1:])
-	a, n = a.reshape(shape), n.reshape(shape)
-	return [a, n]
-
 
 ##################################################
 ##################################################
