@@ -1,4 +1,5 @@
 from npfmt import *
+from IsType import *
 
 
 class BrightSource( object ) : 
@@ -54,7 +55,8 @@ class BrightSource( object ) :
 			hms = h + m/60 + s/3600
 			return hms
 		#--------------------------------------------------
-		if (Type(angle) == 'NumType') : 
+		istype = IsType()
+		if (istype.isint(angle) or istype.isfloat(angle)) : 
 			ang, islist = [angle], False
 		else : ang, islist = angle, True
 		ret = []
@@ -135,7 +137,8 @@ class BrightSource( object ) :
 			flux = flux_Crab_Nebula
 		elif (sn in ['Virgo_A','VirA']) : 
 			flux = flux_Virgo_A
-		if (Type(frequency) == 'NumType') : islist = False
+		istype = IsType()
+		if (istype.isint(frequency) or istype.isfloat(frequency)) : islist = False
 		else : islist = True
 		frequency = npfmt(frequency, float)
 		# power-law

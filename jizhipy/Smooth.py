@@ -92,7 +92,7 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 	# Move axis to axis=0
 	array = ArrayAxis(array, axis, 0, 'move')
 	shape0, shape = array.shape, array.shape
-	# Reduce to 2D
+	# 3D to 2D
 	if (len(shape0) > 2) : 
 		array = array.reshape(shape[0], np.prod(shape[1:]))
 		shape = array.shape
@@ -116,8 +116,10 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 			array = np.concatenate([a1, array, a2])
 			a1 = a2 = 0 #@
 		#--------------------------------------------------
-		Nprocess = NprocessCPU(Nprocess)[0]
-		if (Nprocess > shape[1]) : Nprocess = shape[1]
+		if (len(shape) == 1) : Nprocess = 1
+		else : 
+			Nprocess = NprocessCPU(Nprocess)[0]
+			if (Nprocess > shape[1]) : Nprocess = shape[1]
 		if (Nprocess == 1) : 
 			iterable = (array, weight, lw, dnwa, dnwa1, dnwa2)
 			b = _Multiprocess_Smooth(iterable)

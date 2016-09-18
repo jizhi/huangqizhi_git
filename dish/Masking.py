@@ -2,6 +2,7 @@ import numpy as np
 import multiprocessing
 import jizhipy as jp
 from jizhipy.Plot import *
+import scipy.signal as spsn
 ##################################################
 
 
@@ -158,7 +159,7 @@ class Masking( object ) :
 
 
 
-	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, Nprocess=None, verbose=False ) : 
+	def MaskLoop( self, timeper=60, timetimes=1, freqper=3, freqtimes=1, nsigma=5, nloop=None, threshold=None, Nprocess=None, filtersize=None, verbose=True ) : 
 		'''
 		timeper, timetimes, freqper, freqtimes:
 			Use for smooth()
@@ -182,19 +183,44 @@ class Masking( object ) :
 		Nprocess:
 			For jp.Smooth(Nprocess=)
 
+		filtersize:
+			A scalar: filtersize=5 
+			List of int for time-axis and freq-axis: [61, 5]
+			If ==None: filtersize=[timeper, freqper]
+
 		return self.maskloop
 		Total mask: self.maskloop + self.masknoisesource
 		'''
-		# Read the whole real data as MaskedArray
+		if (verbose): print 'Masking.MaskLoop: start @', jp.Time(1)
 		vistype = self.antarray.vistype[:-1]
+		timeper, timetimes, freqper, freqtimes = np.array([timeper, timetimes, freqper, freqtimes]).round().astype(int)
+		dotime, dofreq = False, False 
+		if (timeper>=2 and timetimes>=1) : dotime = True
+		if (freqper>=2 and freqtimes>=1 and vistype=='auto') : fofreq = True
+		if (not dofreq) : freqper, freqtimes = 0, 0
+		# Read data
 		vis = self.antarray.vis[:,:,self.antarray.visorder]
 		if (vistype == 'auto') : vis = vis.real
 		if (len(vis.shape) == 2) : vis = vis[:,:,None]
-		vis = np.ma.MaskedArray(vis, self.mask)
+		# Filter the data
+		if (verbose) : print '    median filter: start @', jp.Time(1)[11:]
+		try : filtersize = np.array(filtersize).round().astype(int)[:2]
+		except : filtersize = np.array([timeper, freqper])
+		filtersize[filtersize%2==0] += 1
+		if (filtersize.size == 1) : filtersize = np.array([filtersize.take(0), filtersize.take(0)])
+		# Complex to real
+		if (vistype != 'auto') : vis = np.concatenate([vis.real, vis.imag], 2)
+		visfilt = np.zeros(vis.shape, vis.dtype)
+#		for i in xrange(vis.shape[2]) : 
+#			visfilt[:,:,i] = spsn.medfilt2d(vis[:,:,i], filtersize)
+		if (vistype != 'auto') : 
+			N = vis.shape[2]/2
+			vis = vis[:,:,:N] + 1j*vis[:,:,N:]
+		if (verbose) : print '    median filter:  end  @', jp.Time(1)[11:]
 		# Convenient to Smooth(), using non-masked array is much faster than masked array
 		# ntimefringe=0-16600, nfreq1400=307 for PAON4
-		if (self.mask.sum()>0) : vis.data[vis.mask] = vis.mean()
 		# If auto-real, cross-complex
+		vis = np.ma.MaskedArray(vis, self.mask)
 		#--------------------------------------------------
 		if (nloop) : 
 			try : nloop = int(round(nloop))
@@ -209,12 +235,14 @@ class Masking( object ) :
 		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
 		else : nloop, threshold
 		#--------------------------------------------------
+		if (verbose) : print '    done     before      after       diff     time'
 		multipool = False
 		done, mask = 0, 0
 		while (done < nloop) : 
+			if (self.mask.sum() > 0) : vis.data[vis.mask] = visfilt[vis.mask]
 			masksum = vis.mask.sum()
 			#---------- time ----------
-			if (timeper>=2 and timetimes>=1) : 
+			if (dotime) : 
 				dvis = vis.data - jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=Nprocess)
 				if (vistype == 'cross') : 
 					dvis.real, dvis.imag=dvis.real**2, dvis.imag**2
@@ -226,7 +254,7 @@ class Masking( object ) :
 					vis.mask += (dvis > nsigma**2*sigma2) # mask
 			#--------------------------------------------------
 			#---------- freq ----------
-			if (freqper>=2 and freqtimes>=1 and vistype=='auto'):
+			if (dofreq):
 				dvis = vis.data - jp.Smooth(vis.data, 1, freqper, freqtimes, Nprocess=Nprocess)
 				dvis = dvis**2
 				sigma2 = np.ma.MaskedArray(dvis, vis.mask).mean(1)
@@ -234,12 +262,19 @@ class Masking( object ) :
 			#--------------------------------------------------
 			done += 1
 			if (verbose) : 
-				print 'done='+str(done), '  before='+str(masksum), '  after='+str(vis.mask.sum()), '  difference='+str(vis.mask.sum()-masksum), '  ', jp.Time(1)
+				strdone = '%8i'    % done
+				before  = ('%11i') % masksum
+				after   = ('%11i') % vis.mask.sum()
+				diff    = ('%11i') % (vis.mask.sum()-masksum)
+				print strdone + before + after + diff +'    ', jp.Time(1)[11:]
 			if (vis.mask.sum()-masksum <= vis.size*threshold): break
 		#--------------------------------------------------
 		try : self.maskloop = mask - self.masknoisesource
 		except : self.maskloop = mask
 		self.mask += mask
+		# Values replaced to the masks
+		self.maskvalue = visfilt[self.mask]
+		if (verbose): print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
 
 
 
