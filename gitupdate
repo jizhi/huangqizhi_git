@@ -30,6 +30,7 @@ if (len(sys.argv) > 1) :
 	elif (sys.argv[1] == 'pull') : 
 		os.system('git reset --hard')
 		os.system('git pull')
+		exit()
 
 	elif (sys.argv[1] == '-not') : notlist += sys.argv[2:]
 

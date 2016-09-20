@@ -5,7 +5,7 @@ If you want to use matplotlib and plt_ :
 If want to use Log : 
 	from jizhipy.Log import *
 '''
-from Basic import Pause, Purge, Print
+from Other import Pause, Purge, Print
 from Arcsinhspace import Arcsinhspace
 from ArrayAxis import ArrayAxis
 from BrightSource import BrightSource
