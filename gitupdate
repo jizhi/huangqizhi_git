@@ -27,6 +27,10 @@ if (len(sys.argv) > 1) :
 		os.system('git config --global user.name "'+username+'"')
 		os.system('git config --global user.email '+useremail)
 
+	elif (sys.argv[1] == 'pull') : 
+		os.system('git reset --hard')
+		os.system('git pull')
+
 	elif (sys.argv[1] == '-not') : notlist += sys.argv[2:]
 
 
