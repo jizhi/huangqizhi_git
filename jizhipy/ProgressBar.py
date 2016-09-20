@@ -15,7 +15,7 @@ class ProgressBar( object ) :
 		self.starttime0, self.starttime1 = Time()[:2]
 		self.pltend = pltend
  
-	def Progress( self ) : 
+	def Progress( self, endstring='' ) : 
 		self.count -=1
 		currenttime0, currenttime1 = Time()[:2]
 		dtime = Time(self.starttime0, currenttime0)
@@ -25,7 +25,7 @@ class ProgressBar( object ) :
 		if (self.count == self.Ntot-1) : font, end = '', ' \r'
 		elif (self.count != 0) : font, end = '\r', ' '
 		else : font, end = '\r', ' \n'
-		string = font+self.string+'  '+str(self.Ntot-self.count)+'/'+str(self.Ntot)+'  '+dtime+end
+		string = font+self.string+'  '+str(self.Ntot-self.count)+'/'+str(self.Ntot)+'  '+dtime+endstring+end
 		sys.stdout.write(string)
 		sys.stdout.flush()
 		if (self.pltend) : 

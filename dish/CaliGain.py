@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import jizhipy as jp
 from jizhipy.Plot import *
@@ -8,7 +9,9 @@ import scipy.signal as spsn
 
 class CaliGain( object ) : 
 
-	def __init__( self, antarray=None, masking=None ) : 
+
+	def __init__(self, antarray=None, masking=None, verbose=True):
+		self.verbose = verbose
 		if (antarray is not None) : self.antarray = antarray
 		if (masking  is not None) : self.masking  = masking
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
@@ -18,6 +21,62 @@ class CaliGain( object ) :
 		''' How many time points to calculate one std? '''
 		N = int(round(self.antarray.vis.shape[0] / size))
 		self.nsplit = np.linspace(0, self.antarray.vis.shape[0], N+1).round().astype(int)
+
+
+
+	def Gainnu( self ) : 
+		''' Calculate g(nu) and plot '''
+		outdir = self.outdir + 'Gainnu/'
+		if (not os.path.exists(outdir)) : os.makedirs(outdir)
+		if (self.verbose) : 
+			print 'CaliGain.Gainnu: start @', jp.Time(1)
+			progressbar = jp.ProgressBar('    completed:', len(self.nsplit)-1+self.antarray.visorder.size)
+		# Read data
+		vistype = self.antarray.vistype[:-1]
+		if (vistype != 'auto') : 
+			print '    Error: CaliGaint.Gainnu() should use "auto-correlation", but now AntArray.vistype="'+self.antarray.vistype+'"'
+			if (self.verbose) : print 'CaliGain.Gainnu:  end  @', jp.Time(1)+'\n'
+			exit()
+		#--------------------------------------------------
+		vis = self.antarray.vis[:,:,self.antarray.visorder].real
+		if (len(vis.shape) == 2) : vis = vis[:,:,None]  # 3D
+		# Replace masks
+		vis[self.masking.mask] = self.masking.maskvalue
+		# Calculate
+		self.gainnu = np.zeros((self.nsplit.size-1,)+vis.shape[1:], vis.dtype)
+		for i in xrange(len(self.nsplit)-1) : 
+			if (self.verbose) : progressbar.Progress()
+			self.gainnu[i] = vis[self.nsplit[i]:self.nsplit[i+1]].mean(0)
+		#--------------------------------------------------
+		# Plot
+		gnusmooth = jp.Smooth(self.gainnu, 1, self.gainnu.shape[1]/10, 1)
+		dgnu = (self.gainnu - gnusmooth).std(1)
+		freq = self.antarray.Ant.freq
+		color = plt_color(self.gainnu.shape[0])
+		for i in xrange(self.gainnu.shape[2]) : 
+			if (self.verbose) : progressbar.Progress()
+			chanidx = self.antarray.Blorder.blorder[self.antarray.visorder][i][0]
+			j = np.where(dgnu[:,i]==dgnu[:,i].min())[0][0]
+			vmin, vmax = gnusmooth[j,:,i].min(), gnusmooth[j,:,i].max()
+			vmin, vmax = vmin-0.05*(vmax-vmin), vmax+0.2*(vmax-vmin)
+			if (vmin < 0) : vmin = 0
+			for j in xrange(self.gainnu.shape[0]) : 
+				plt.plot(freq, self.gainnu[j,:,i], color=color[j], label=str(j+1))
+		#	plt.legend(fontsize=10)
+			plt.xlabel(r'$\nu$ [MHz]', size=16)
+			plt.xlim(int(round(freq.min())), int(round(freq.max())))
+			plt_axes('x', 'both', [25,5])
+			plt.ylabel('[A.U.]', size=16)
+			plt.ylim(vmin, vmax)
+			plt.title(r'$g(\nu)$ of channel '+str(chanidx)+', total '+str(len(color)+1)+' curves', size=16)
+			plt.savefig('haha.png')
+			plt.savefig(outdir+'gnu_'+str(chanidx)+'.png')
+			plt.close()
+		if (self.verbose) : print 'CaliGain.Gainnu:  end  @', jp.Time(1)+'\n'
+
+
+
+
 
 
 
@@ -82,7 +141,7 @@ class CaliGain( object ) :
 
 
 
-	def See( self, timeper, timetimes, nfreq=None, nbl=None, verbose=True ) : 
+	def See( self, timeper, timetimes, nfreq=None, nbl=None ) : 
 		'''
 		nfreq:
 			(1) int: freq bin
@@ -94,7 +153,7 @@ class CaliGain( object ) :
 			(2) int pair (int1, int2): channel pair of baseline
 			(3) None: longest East-West baseline
 		'''
-		if (verbose) : print 'CaliGain.See: start @', jp.Time(1)
+		if (self.verbose) : print 'CaliGain.See: start @', jp.Time(1)
 		vistype = self.antarray.vistype[:-1]
 		nbl, strbl, norder = self._nbl(nbl)
 		nfreq, strfreq = self._nfreq(nfreq)
@@ -158,11 +217,11 @@ class CaliGain( object ) :
 		plt.suptitle('Flucation, '+strfreq+', '+strbl, size=20)
 		plt.savefig(self.outdir+'CaliGain.See_'+strfreq+'_'+strbl.split('=')[0]+'.png')
 		plt.close()
-		if (verbose): print 'CaliGain.See:  end  @', jp.Time(1)+'\n'
+		if (self.verbose): print 'CaliGain.See:  end  @', jp.Time(1)+'\n'
 
 
 
-	def Gaint( self, timeper=3, timetimes=100, nfreq=None, nbl=None, verbose=True ) : 
+	def Gaint(self, timeper=3,timetimes=100, nfreq=None,nbl=None):
 		'''
 		Actually the return is:
 			sigma_noise * gain(t)
@@ -180,7 +239,7 @@ class CaliGain( object ) :
 			(2) int pair (int1, int2): channel pair of baseline
 			(3) None: longest East-West baseline
 		'''
-		if (verbose) : 
+		if (self.verbose) : 
 			print 'CaliGain.Gaint: start @', jp.Time(1)
 			progressbar = jp.ProgressBar('completed:', len(self.nsplit)-1)
 		# Read data
@@ -196,7 +255,7 @@ class CaliGain( object ) :
 		# Calculate the std of noise
 		self.gaint = np.zeros((len(self.nsplit)-1,)+vis.shape[1:], vis.dtype)
 		for i in xrange(len(self.nsplit)-1) : 
-			if (verbose) : progressbar.Progress()
+			if (self.verbose) : progressbar.Progress()
 			if (vistype == 'auto') : self.gaint[i] = vis[self.nsplit[i]:self.nsplit[i+1]].std(0)
 			else : 
 				self.gaint[i].real = vis.real[self.nsplit[i]:self.nsplit[i+1]].std(0)
@@ -228,11 +287,11 @@ class CaliGain( object ) :
 			plt.ylabel('[A.U.]', size=16)
 		plt.title(r'$G(t) \cdot \sigma_n$, '+strfreq+', '+strbl, size=16)
 		plt.savefig(self.outdir+'CaliGain.Gaint_'+strfreq+'_'+strbl.split('=')[0]+'.png')
-		if (verbose) : print 'CaliGain.Gaint:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : print 'CaliGain.Gaint:  end  @', jp.Time(1)+'\n'
 
 
 
-	def Smooth( self, filtersize, smoothtimes, verbose=True ) : 
+	def Smooth( self, filtersize, smoothtimes ) : 
 		'''
 		Smooth self.gaint
 
@@ -243,7 +302,7 @@ class CaliGain( object ) :
 		smoothtimes:
 			int: for jp.Smooth() over time-axis
 		'''
-		if (verbose) : print 'CaliGain.Smooth: start @', jp.Time(1)
+		if (self.verbose) : print 'CaliGain.Smooth: start @', jp.Time(1)
 		# filtersize
 		try : filtersize = filtersize[:2]
 		except : filtersize = (5, 3)
@@ -288,4 +347,5 @@ class CaliGain( object ) :
 				plt.ylabel('[A.U.]', size=16)
 			plt.title(r'$G(t) \cdot \sigma_n$, '+strfreq+', '+strbl, size=16)
 			plt.savefig(self.outdir+'CaliGain.Gaint_'+strfreq+'_'+strbl.split('=')[0]+'.png')
-			if (verbose) : print 'CaliGain.Smooth:  end  @', jp.Time(1)+'\n'
+			if (self.verbose) : print 'CaliGain.Smooth:  end  @', jp.Time(1)+'\n'
+

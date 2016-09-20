@@ -1,4 +1,7 @@
 from PoolFor import *
+from ArrayAxis import *
+from Same import *
+from Raise import *
 
 
 
@@ -34,19 +37,29 @@ def _DoMultiprocess_ResetMasked_npix( iterable ) :
 	return np.concatenate(value)
 
 
+
 def ResetMasked( maskedarray, axis, Nprocess=None ) : 
 	'''
 	Use the elements around the masked elements to calculate some values, then use these values to fill/reset the masked elements
 	Return a non-masked array
+
+	maskedarray:
+		Any dimension np.ma.MaskedArray()
+
+	axis:
+		Along which axis to guess the values
 	'''
 	Nprocess = NprocessCPU(Nprocess)[0]
 	#--------------------------------------------------
 	mask = maskedarray.mask
 	if (mask.sum() == 0) : return maskedarray.data
-	maskedarray = ArrayAxis(maskedarray.data, axis, -1, 'move')
+	if (axis == 0) : maskedarray = maskedarray.T
+	else : 
+		maskedarray = ArrayAxis(maskedarray.data, axis, -1, 'move')
+		mask = ArrayAxis(mask, axis, -1, 'move')
+		maskedarray = np.ma.MaskedArray(maskedarray, mask)
 	shape = npfmt(maskedarray.shape)
-	mask = ArrayAxis(mask, axis, -1, 'move').flatten()
-	maskedarray = np.ma.MaskedArray(maskedarray.flatten(), mask)
+	maskedarray = maskedarray.flatten()
 	#--------------------------------------------------
 	nperiod = np.arange(maskedarray.size) % shape[-1]
 	nmaskn = nperiod[maskedarray.mask]-1 # left of mask in period
@@ -152,7 +165,8 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 	#--------------------------------------------------
 	maskedarray.data[maskedarray.mask] = value
 	maskedarray = maskedarray.data.reshape(shape)
-	maskedarray = ArrayAxis(maskedarray, -1, axis, 'move')
+	if (axis == 0) : maskedarray = maskedarray.T
+	else : maskedarray = ArrayAxis(maskedarray, -1, axis, 'move')
 	return maskedarray
 
 

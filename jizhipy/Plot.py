@@ -1,15 +1,35 @@
-import matplotlib as mpl
+from matplotlib import rcParams
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter 
 from scipy.interpolate import interp1d
-from Basic import *
-from ShellCmd import *
-
-''' Use latex '''
-latex = ShellCmd('which latex')
-if (latex != []) : mpl.rcParams['text.usetex'] = True
+from npfmt import *
 
 
+
+##################################################
+##################################################
+##################################################
+
+
+
+def plt_usetex( tf ) : 
+	'''
+	Some system, 
+		set usetex=True , use tex
+		set usetex=False, don't use tex
+
+	But also some system,
+		set usetex=True , raise error
+		set usetex=False, use tex!
+
+	Therefore, set True/False dependenting on your system
+	'''
+	rcParams['text.usetex'] = bool(tf)
+
+
+
+##################################################
+##################################################
 ##################################################
 
 
@@ -33,9 +53,11 @@ def plt_period( x0, dx, period, fmt='%i' ) :
 	plt.xticks(x0tick, x1tick)
 
 
+
 ##################################################
 ##################################################
 ##################################################
+
 
 
 def plt_xaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=True, color='k', showminor=False, pcolor=False ) : 
@@ -91,6 +113,7 @@ def plt_xaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, di
 			if (pcolor == False) : tick.label2On = True
 
 
+
 def plt_yaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=True, color='k', showminor=False, pcolor=False) : 
 	axes = plt.gca()
 	times = npfmt(times)
@@ -142,6 +165,7 @@ def plt_yaxes( xy, which='both', times=[], fmt='%i', fontsize=12, ticksize=8, di
 			tick.label2.set_fontsize(int(fontsize*2/3.))
 		if (label2On) : 
 			if (pcolor == False) : tick.label2On = True
+
 
 
 def plt_axes( xy='both', which='both', times=[], fmt='%i', fontsize=12, ticksize=8, direction='in', label2On=False, color='k', showminor=False, pcolor=False) : 
@@ -207,9 +231,11 @@ def plt_axes( xy='both', which='both', times=[], fmt='%i', fontsize=12, ticksize
 		plt_yaxes( xy=xy, which=which, times=times[1], fmt=fmt[1], fontsize=fontsize[1], ticksize=ticksize[1], direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
 
 
+
 ##################################################
 ##################################################
 ##################################################
+
 
 
 def plt_legend() : 
@@ -221,6 +247,7 @@ def plt_legend() :
 ##################################################
 ##################################################
 ##################################################
+
 
 
 def plt_color( N, r2b=False, k=1 ) : 
@@ -278,36 +305,10 @@ def plt_color( N, r2b=False, k=1 ) :
 	return color
 
 
+
 ##################################################
 ##################################################
 ##################################################
 
 
-def plt_colorls( l2d=None ) : 
-	'''
-	plt.plot(x, y, color=), when plot many curves in one figure, it needs many different colors. This function is used to create these colors.
-	The colors will change from read-yellow-green-cyen-blue-black
 
-	l2d:
-		light to deep color?
-		True, False, None
-
-	return:
-		[color, linestyle]
-
-	Use:
-		colorls = plt_colorls()
-		plt.plot(x, y, color=colorls[0][i], ls=colorls[1][i])
-	'''
-	if (l2d is None) : 
-		color9 = ['r', 'b', 'k', 'g', 'c', 'm', (1,0.5,0), (0,1,0), 'y', (0.5,0,0)]
-	elif (l2d is True) : 
-		color9 = ['r', (1,0.5,0), 'y', (0,1,0), 'g', 'c', 'b', 'm', (0.5,0,0), 'k']
-	elif (l2d is False) : 
-		color9 = ['k', (0.5,0,0), 'm', 'b', 'c', 'g', (0,1,0), 'y', (1,0.5,0), 'r']
-	linestyle9 = ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-']
-	color18 = color9 + color9
-	linestyle18 = linestyle9 + ['--', '--', '--', '--', '--', '--', '--', '--', '--', '--']
-	color27 = color18 + color9
-	linestyle27 = linestyle18 + [':', ':', ':', ':', ':', ':', ':', ':', ':', ':']
-	return [color27, linestyle27]

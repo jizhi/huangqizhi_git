@@ -12,6 +12,7 @@ def Sort( array, along='[:,2]', l2s=False ) :
 		Must as format like '[n1,n2,:,n4]'
 		Must have ':', use [2,:] instead of [2]
 		array[n1,n2,:,n4] must 1D so that we can sort along this
+		along=[:,2] : second column
 
 	l2s: 
 		l2s=False: from small to large (default)

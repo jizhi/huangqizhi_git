@@ -136,6 +136,7 @@ class AntArray( object ) :
 			= [WhichHdf5(), MaskChannel(), SelectChannel(), SelectVisType(), Blorder, Hdf5, Ant, vis, vistype, visorder]
 
 		self.Blorder.__dict__.keys() 
+			blorder starts from 1, not 0 !
 			= [blorder, auto1, auto2, cross1, cross2, cross3, feedpos, channelpos, baseline, Bl2Order(), Order2Bl(), maskchannel, maskorder, selectchannel, selectorder]
 	
 		self.Hdf5.__dict__.keys() 
@@ -195,7 +196,9 @@ class AntArray( object ) :
 		self.Ant.lonlat = np.array([fo.attrs['sitelon'], fo.attrs['sitelat']])
 		self.Ant.dishdiam = fo.attrs['dishdiam']
 		self.Ant.inttime = fo.attrs['inttime']
-		self.Ant.freq = np.arange(fo.attrs['freqstart'], fo.attrs['freqstart']+fo.attrs['freqstep']*fo.attrs['nfreq'], fo.attrs['freqstep'])
+		freq1 = np.arange(fo.attrs['freqstart'], fo.attrs['freqstart']+fo.attrs['freqstep']*fo.attrs['nfreq'], fo.attrs['freqstep'])
+		freq2 = np.linspace(fo.attrs['freqstart'], fo.attrs['freqstart']+fo.attrs['freqstep']*fo.attrs['nfreq'], fo.attrs['nfreq'])
+		self.Ant.freq = freq1 if(freq1.size==fo.attrs['nfreq'])else freq2
 		self.Ant.noisesourcepos = np.array([-159.802, 11.920, 11.650])
 
 

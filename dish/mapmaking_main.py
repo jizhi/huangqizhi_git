@@ -35,19 +35,20 @@ antarray = AntArray(hdf5dir)
 
 antarray.WhichHdf5('transitsource')
 
-antarray.SelectVisType('cross1')
-antarray.SelectChannel([3,5])
+#antarray.SelectVisType('cross1')
+#antarray.SelectChannel([3,5])
 
-#antarray.SelectVisType('auto1')
-#antarray.SelectChannel([3])
+antarray.SelectVisType('auto1')
+antarray.SelectChannel([3])
 
 
 ##################################################
 
 
 masking = Masking(antarray)
-try : masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
-except : pass
+
+#pixstart, pixlength, pixperiod = 1000, 5, 10000
+#masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
 
 
 freq = 1400
@@ -56,11 +57,22 @@ nfreq = np.where(nfreq==nfreq.min())[0][0]
 ntimemax = 69104
 
 
-timeper, timetimes, freqper, freqtimes = 60, 1, 0, 1
-nsigma, nloop, threshold, Nprocess = 4, 1, 0.001, None
-filtersize, verbose = None, True
+timeper, timetimes = 60, 1
+nsigma, nloop, threshold = 4, 2, 0.001
+filtersize = None
 
-masking.MaskLoop(timeper=timeper, timetimes=timetimes, freqper=freqper, freqtimes=freqtimes, nsigma=nsigma, nloop=nloop, threshold=threshold, Nprocess=Nprocess, filtersize=filtersize, verbose=verbose)
+#masking.MaskLoop(timeper=timeper, timetimes=timetimes, nsigma=nsigma, nloop=nloop, threshold=threshold, filtersize=filtersize)
+
+
+#vis = antarray.vis[:,:,antarray.visorder][:,:,None]
+#vis[masking.masknoisesource] += 3e4
+#x = np.arange(len(vis))
+#plt.plot(x, vis[:,1,0], 'b-')
+#vis[masking.mask] = masking.maskvalue
+#plt.plot(x, vis[:,1,0], 'r-')
+#plt.show()
+#
+#jp.Raise()
 
 
 ##################################################
@@ -70,11 +82,14 @@ caligain = CaliGain(antarray, masking)
 
 caligain.Window(4*60)
 
+caligain.Gainnu()
+jp.Raise()
+
 #caligain.See(3, 100, nfreq)
 
 caligain.Gaint()
 
-caligain.Smooth([3,1], 100)
+#caligain.Smooth([3,1], 100)
 jp.Raise()
 
 
