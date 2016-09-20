@@ -1,4 +1,4 @@
-from Basic import *
+from Other import *
 import multiprocessing
 from ShellCmd import *
 

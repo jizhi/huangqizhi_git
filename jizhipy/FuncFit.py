@@ -1,4 +1,4 @@
-from Basic import *
+from Other import *
 from scipy.optimize import leastsq, curve_fit
 
 

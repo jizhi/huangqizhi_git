@@ -1,4 +1,4 @@
-from Basic import *
+from Other import *
 from npfmt import *
 from PoolFor import *
 import ephem
