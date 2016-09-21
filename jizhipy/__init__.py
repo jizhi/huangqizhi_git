@@ -32,7 +32,8 @@ from Repetition import Repetition
 from ResetMasked import ResetMasked
 from Same import Same
 from SciNot import Print, SciNot
-from ShellCmd import cd, ShellCmd
+from SelectLeastsq import SelectLeastsq
+from ShellCmd import Cd, ShellCmd
 from Smooth import SmoothWeight, Smooth
 from Sort import Sort
 from SortFilename import SortFilename

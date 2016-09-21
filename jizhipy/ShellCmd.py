@@ -4,7 +4,7 @@ from Raise import *
 
 
 
-class cd( object ) : 
+class Cd( object ) : 
 
 	def __init__( self ) : 
 		self.originalpath = os.getcwd()
@@ -26,8 +26,9 @@ def ShellCmd( cmd ) :
 		path = SysFrame()[1][-1]
 		n = path.rfind('/')
 		path = path[:n+1]
-		if (os.popen('which xdg-open').readlines()) : which = 'xdg-open'
-		if (os.popen('which open').readlines()) : which = 'open'
+		uname = os.popen('uname -a').readlines()[0][:5]
+		if (uname == 'Darwi') : which = 'open'
+		elif (uname == 'Linux') : which = 'evince'  # 'xdg-open'
 		os.system(which+' '+path+'python-shellcmd.pdf')
 		return
 	strlist = os.popen(cmd).readlines()

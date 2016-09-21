@@ -52,18 +52,21 @@ def SciNot( array ) :
 	nlarge, nsmall = (array>=1), (array<1)  # bool, not int
 	# Use log10 to get the power index
 	# >=1
-	idxlarge = np.log10(array[nlarge]).astype(int)
+	if (nlarge.sum() > 0) : idxlarge = np.log10(array[nlarge]).astype(int)
+	else : idxlarge = []
 	# <1
-	scalesmall = int(round(np.log10(array[nsmall].min())))-2
-	array[nsmall] /= 10.**scalesmall
-	idxsmall = np.log10(array[nsmall]).astype(int) + scalesmall
-	array[nsmall] *= 10.**scalesmall
+	if (nsmall.sum() > 0) : 
+		scalesmall = int(round(np.log10(array[nsmall].min())))-2
+		array[nsmall] /= 10.**scalesmall
+		idxsmall = np.log10(array[nsmall]).astype(int) + scalesmall
+		array[nsmall] *= 10.**scalesmall
+	else : idxsmall = []
 	# valid and idx
-	idx = np.zeros(array.size, np.int16)
+	idx = np.zeros(array.size, int)
 	idx[nlarge], idx[nsmall] = idxlarge, idxsmall
 	valid = sign * (array / 10.**idx)
 	valid, idx = valid.reshape(shape), idx.reshape(shape)
 	if (islist) : return (valid, idx)
-	else : return (valid.take(0), idx.take(0))
+	else : return (valid[0], idx[0])
 	
 	

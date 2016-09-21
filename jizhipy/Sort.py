@@ -2,8 +2,7 @@ from ArrayAxis import *
 
 
 
-#def Sort( array, along=('row', 0), l2s=False ) : 
-def Sort( array, along='[:,2]', l2s=False ) : 
+def Sort( array, along='[0,:]', l2s=False ) : 
 	'''
 	array:
 		Can be any shape
@@ -24,6 +23,11 @@ def Sort( array, along='[:,2]', l2s=False ) :
 	along = np.array(along, int)
 	#--------------------------------------------------
 	array = npfmt(array)
+	if (len(array.shape) == 1) : 
+		array = np.sort(array)
+		if (l2s) : array = array[::-1]
+		return array
+	#--------------------------------------------------
 	array = ArrayAxis(array, axis, -1, 'move')
 	shape = array.shape
 	#--------------------------------------------------

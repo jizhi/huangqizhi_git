@@ -2,6 +2,7 @@ from PoolFor import *
 from ArrayAxis import *
 from Same import *
 from Raise import *
+from Same import *
 
 
 
@@ -78,7 +79,7 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 			less[i] = j-nless[i]-1
 		masktmp = 0 #@
 	#--------------------------------------------------
-	elif (len(nless) > 1) : 
+	elif (len(nless) > 0) : 
 		pool = PoolFor(0, len(nless), Nprocess)
 		retn = pool.map_async(_DoMultiprocess_ResetMasked, send=(nless, less), bcast=(maskedarray.mask, True))
 		nmasknidx, nmasknvalue, less = [], [], []
@@ -112,7 +113,7 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 	nmaskp = nrange[maskedarray.mask]+1
 	nmore = nmaskp[more]
 	#--------------------------------------------------
-	if (Nprocess <= 1) : 
+	if (Nprocess <= 1) : # nmaskp, more
 		for i in range(len(nmore)) : 
 			masktmp = maskedarray.mask[:nmore[i]-2+1][::-1]
 			j = nmore[i]-2 - np.where(masktmp==False)[0][0]
@@ -120,7 +121,7 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 			more[i] = nmore[i]-j-1
 		masktmp = 0 #@
 	#--------------------------------------------------
-	elif (len(nmore) > 1) : 
+	elif (len(nmore) > 0) : 
 		pool = PoolFor(0, len(nmore), Nprocess)
 		retn = pool.map_async(_DoMultiprocess_ResetMasked, send=(nmore, more), bcast=(maskedarray.mask, False))
 		nmasknidx, nmasknvalue, more = [], [], []
@@ -149,7 +150,7 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 	nrange = 0 #@
 	#--------------------------------------------------
 	npix = nmaskp - nmaskn -1
-	npix[npix==-1] = np.sort(np.concatenate([nless, nmore])).imag.astype(int)
+	npix[npix==-1] = np.sort(np.concatenate([nless,nmore])).imag.astype(int)
 	#--------------------------------------------------
 	if (Nprocess <= 1) : 
 		value = []

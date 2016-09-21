@@ -92,7 +92,7 @@ class Masking( object ) :
 		self.noisesource.Mask(self.antarray)
 		self.masknoisesource = self.noisesource.mask[:,None,None] + np.zeros(self.mask.shape, bool)  # 3D
 		#--------------------------------------------------
-		# Read and filter vis
+		# Read vis
 		vistype = self.antarray.vistype[:-1]
 		vis = self.antarray.vis[:,:,self.antarray.visorder]
 		if (vistype == 'auto') : vis = vis.real
@@ -122,6 +122,156 @@ class Masking( object ) :
 		maskvalue = np.array([maskidx, maskvalue], self.maskvalue.dtype)
 		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
 		if (self.verbose) : print 'Masking.MaskNoisesource:  end  @', jp.Time(1)+'\n'
+
+
+
+	def MaskLoop( self, axis, per=60, times=1, nsigma=5, nloop=None, threshold=None, array=None, arraymaskvalue=None ) : 
+		'''
+		axis:
+			Along which axis?
+
+		per, times:
+			Use for smooth()
+			In order to set a good per+times, you can try by hand and judge by eyes (plot and look at around the fringe/source)
+
+		nsigma:
+			Calculate sigma of each freq and vis along time (sigma.shape=(Nf, Nv)), value > nsigma*sigma will be considered as RFI
+
+		nloop:
+			Each time we will mask the value>nsigma*sigma, and then recalculate a new sigma, and do again. nloop set how many times we will do.
+			If set nloop=None, stop with threshold
+
+		threshold:
+			masknew.sum()-maskold.sum() < vis.size*threshold, stop
+
+		If nloop=None, use threshold
+		If threshold=None, use nloop
+		If nloop!=None and threshold!=None, use one that satisfies first
+		If nloop==None and threshold==None, set nloop=10, threshold=0.001
+
+		if (array is None) : 
+			self.mask, self.maskloop, self.maskvalue
+		else : return [array_new, arraymaskvalue_new]
+		'''
+		if (self.verbose) : print 'Masking.MaskLoop: start @', jp.Time(1)
+		try : axis = int(round(axis))
+		except : axis = 0
+		per, times = np.array([per, times]).round().astype(int)
+		if (per<=1 or times<=0) : return
+		if (nloop) : 
+			try : nloop = int(round(nloop))
+			except : nloop = 1
+			if (nloop <= 0) : nloop = 1
+		if (threshold) : 
+			try : threshold+0
+			except : threshold = 0.001
+			if (threshold < 0) : threshold = 0
+		if (nloop and not threshold) : threshold, strthreshold = 0, 'None'
+		elif (not nloop and threshold) : nloop, strnloop = 100, 'None'
+		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
+		else : nloop, threshold
+		#--------------------------------------------------
+		if (self.verbose) : print ('    axis=%i, per=%i, times=%i, nsigma=%.1f, nloop=%i, threshold=%.3f' % (axis, per, times, nsigma, nloop, threshold))
+		vistype = self.antarray.vistype[:-1]
+		if (axis==1 and vistype=='cross') : 
+			if (self.verbose) : print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
+			return
+		#--------------------------------------------------
+		#---------- Array to handle ----------
+		if (array is None) : 
+			# Read data
+			vis = self.antarray.vis[:,:,self.antarray.visorder]
+			# 3D, auto-real, cross-complex
+			if (vistype == 'auto') : vis = vis.real
+			if (len(vis.shape) == 2) : vis = vis[:,:,None]
+			# Convenient to Smooth(), using non-masked array is much faster than masked array
+			# ntimefringe=0-16600, nfreq1400=307 for PAON4
+			vis[self.mask] = self.maskvalue  #@ Reset
+			vis = np.ma.MaskedArray(vis, self.mask)
+			maskvalue = [self.maskvalue]
+		else : 
+			istype = jp.IsType()
+			if (istype.ismaskedarray(array)) : vis = array
+			else : 
+				array = jp.npfmt(array)
+				vis = array = np.ma.MaskedArray(array, np.zeros(array.shape, bool))
+			if (arraymaskvalue is not None) : maskvalue = [arraymaskvalue]
+			else : maskvalue = [vis.data[vis.mask].copy()]
+		#--------------------------------------------------
+		shape = vis.shape
+		maskidx =[np.arange(vis.size).reshape(vis.shape)[vis.mask]]
+		if (self.verbose) : print '    done     before      after       diff     time'
+		done, mask = 0, 0
+		while (done < nloop) : 
+			maskback = vis.mask.copy()
+			dvis = vis.data - jp.Smooth(vis.data, axis, per, times, Nprocess=self.Nprocess)
+			#--------------------
+			if (vistype == 'cross') : 
+				dvis.real, dvis.imag=dvis.real**2, dvis.imag**2
+				sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(axis)
+				if (axis == 1) : sigma2 = sigma2[:,None,:]
+				vis.mask += (dvis.real>nsigma**2*sigma2.real) + (dvis.imag>nsigma**2*sigma2.imag) # mask
+			elif (vistype == 'auto') : 
+				dvis = dvis**2
+				sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(axis)
+				if (axis == 1) : sigma2 = sigma2[:,None,:]
+				vis.mask += (dvis > nsigma**2*sigma2) # mask
+			done += 1
+			# self.maskvalue
+			masknew = vis.mask - maskback
+			visreset = np.ma.MaskedArray(vis.data, masknew)
+			visreset = jp.ResetMasked(visreset, axis, Nprocess=self.Nprocess)
+			maskidx.append(np.arange(vis.size).reshape(vis.shape)[masknew])
+			maskvalue.append(visreset[masknew].copy())
+			visreset = 0 #@
+			# Reset masked
+			vis = vis.flatten()
+			vis.data[maskidx[-1]] = maskvalue[-1]
+			vis = vis.reshape(shape)
+			if (self.verbose) : 
+				strdone = '%8i'    % done
+				before  = ('%11i') % maskback.sum()
+				after   = ('%11i') % vis.mask.sum()
+				diff    = ('%11i') % (vis.mask.sum()-maskback.sum())
+				print strdone + before + after + diff +'    ', jp.Time(1)[11:]
+			if (vis.mask.sum()-maskback.sum() <= vis.size*threshold) : break
+		#--------------------------------------------------
+		maskidx = np.concatenate(maskidx)
+		maskvalue = np.concatenate(maskvalue)
+		maskvalue=jp.Sort(np.array([maskidx,maskvalue]),'[0,:]')[1]
+		if (array is None) : 
+			self.maskvalue = maskvalue
+			self.mask = vis.mask
+			try    : self.maskloop = self.mask - self.masknoisesource
+			except : self.maskloop = self.mask
+		else : return [vis, maskvalue]
+		if (self.verbose) : print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
+
+
+
+	def MaskManual( self, maskmanual ) : 
+		if (maskmanual.shape != self.mask.shape) : jp.Raise(Exception, 'maskmanual.shape != self.mask.shape')
+		if (self.verbose) : print 'Masking.MaskManual: start @', jp.Time(1)
+		maskback = self.mask.copy()
+		self.mask += maskmanual
+		self.maskmanual = self.mask - maskback
+		#--------------------------------------------------
+		maskidx = [np.arange(vis.size).reshape(vis.shape)[maskback]]
+		maskvalue = [self.maskvalue]
+		maskidx.append(np.arange(self.mask.size).reshape(self.mask.shape)[self.maskmanual])
+		#--------------------------------------------------
+		vistype = self.antarray.vistype[:-1]
+		vis = self.antarray.vis[:,:,self.antarray.visorder]
+		if (vistype == 'auto') : vis = vis.real
+		if (len(vis.shape) == 2) : vis = vis[:,:,None]
+		vis[maskback] = self.maskvalue
+		vis = np.ma.MaskedArray(vis, self.maskmanual)
+		vis = jp.ResetMasked(vis, 0, self.Nprocess)
+		maskvalue.append(vis[self.maskmanual])
+		#--------------------------------------------------
+		maskvalue = np.array([np.concatenate(maskidx), np.concatenate(maskvalue)])
+		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
+		if (self.verbose) : print 'Masking.MaskManual:  end  @', jp.Time(1)+'\n'
 
 
 
@@ -196,135 +346,6 @@ class Masking( object ) :
 		plt.savefig(self.outdir+figname)
 		if (show) : plt.show()
 		plt.close()
-
-
-
-	def MaskLoop( self, timeper=60, timetimes=1, nsigma=5, nloop=None, threshold=None, filtersize=None ) : 
-		'''
-		timeper, timetimes, freqper, freqtimes:
-			Use for smooth()
-			In order to set a good per+times, you can try by hand and judge by eyes (plot and look at around the fringe/source)
-
-		nsigma:
-			Calculate sigma of each freq and vis along time (sigma.shape=(Nf, Nv)), value > nsigma*sigma will be considered as RFI
-
-		nloop:
-			Each time we will mask the value>nsigma*sigma, and then recalculate a new sigma, and do again. nloop set how many times we will do.
-			If set nloop=None, stop with threshold
-
-		threshold:
-			masknew.sum()-maskold.sum() < vis.size*threshold, stop
-
-		If nloop=None, use threshold
-		If threshold=None, use nloop
-		If nloop!=None and threshold!=None, use one that satisfies first
-		If nloop==None and threshold==None, set nloop=10, threshold=0.001
-
-		filtersize:
-			A scalar: filtersize=5 
-			List of int for time-axis and freq-axis: [61, 5]
-			If ==None: filtersize=[timeper, freqper]
-
-		return self.maskloop
-		Total mask: self.maskloop + self.masknoisesource
-		'''
-		if (self.verbose) : print 'Masking.MaskLoop: start @', jp.Time(1)
-		timeper, timetimes = np.array([timeper, timetimes]).round().astype(int)
-		if (timeper<=1 or timetimes<=0) : return
-		if (nloop) : 
-			try : nloop = int(round(nloop))
-			except : nloop = 1
-			if (nloop <= 0) : nloop = 1
-		if (threshold) : 
-			try : threshold+0
-			except : threshold = 0.001
-			if (threshold < 0) : threshold = 0
-		if (nloop and not threshold) : threshold, strthreshold = 0, 'None'
-		elif (not nloop and threshold) : nloop, strnloop = 100, 'None'
-		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
-		else : nloop, threshold
-		#--------------------------------------------------
-		# Read data
-		vistype = self.antarray.vistype[:-1]
-		vis = self.antarray.vis[:,:,self.antarray.visorder]
-		# 3D, auto-real, cross-complex
-		if (vistype == 'auto') : vis = vis.real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]
-		shape = vis.shape
-		# Convenient to Smooth(), using non-masked array is much faster than masked array
-		# ntimefringe=0-16600, nfreq1400=307 for PAON4
-		vis[self.mask] = self.maskvalue  #@ Reset
-		vis = np.ma.MaskedArray(vis, self.mask)
-		#--------------------------------------------------
-		maskidx=[np.arange(vis.size).reshape(vis.shape)[self.mask]]
-		maskvalue = [self.maskvalue]
-		if (self.verbose) : print '    done     before      after       diff     time'
-		done, mask = 0, 0
-		while (done < nloop) : 
-			maskback = vis.mask.copy()
-			#--------------------
-			dvis = vis.data - jp.Smooth(vis.data, 0, timeper, timetimes, Nprocess=self.Nprocess)
-			if (vistype == 'cross') : 
-				dvis.real, dvis.imag=dvis.real**2, dvis.imag**2
-				sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(0)
-				vis.mask += (dvis.real>nsigma**2*sigma2.real) + (dvis.imag>nsigma**2*sigma2.imag) # mask
-			elif (vistype == 'auto') : 
-				dvis = dvis**2
-				sigma2=np.ma.MaskedArray(dvis,vis.mask).mean(0)
-				vis.mask += (dvis > nsigma**2*sigma2) # mask
-			done += 1
-			# self.maskvalue
-			masknew = vis.mask - maskback
-			visreset = np.ma.MaskedArray(vis.data, masknew)
-			visreset = jp.ResetMasked(visreset, 0, self.Nprocess)
-			maskidx.append(np.arange(vis.size).reshape(vis.shape)[masknew])
-			maskvalue.append(visreset[masknew].copy())
-			visreset = 0 #@
-			# Reset masked
-			vis = vis.flatten()
-			vis.data[maskidx[-1]] = maskvalue[-1]
-			vis = vis.reshape(shape)
-			if (self.verbose) : 
-				strdone = '%8i'    % done
-				before  = ('%11i') % maskback.sum()
-				after   = ('%11i') % vis.mask.sum()
-				diff    = ('%11i') % (vis.mask.sum()-maskback.sum())
-				print strdone + before + after + diff +'    ', jp.Time(1)[11:]
-			if (vis.mask.sum()-maskback.sum() <= vis.size*threshold) : break
-		#--------------------------------------------------
-		maskidx = np.concatenate(maskidx)
-		maskvalue = np.concatenate(maskvalue)
-		self.maskvalue = jp.Sort(np.array([maskidx, maskvalue]), '[0,:]')[1]
-		self.mask = vis.mask
-		try    : self.maskloop = self.mask - self.masknoisesource
-		except : self.maskloop = self.mask
-		if (self.verbose) : print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
-
-
-
-	def MaskManual( self, maskmanual ) : 
-		if (maskmanual.shape != self.mask.shape) : jp.Raise(Exception, 'maskmanual.shape != self.mask.shape')
-		if (self.verbose) : print 'Masking.MaskManual: start @', jp.Time(1)
-		maskback = self.mask.copy()
-		self.mask += maskmanual
-		self.maskmanual = self.mask - maskback
-		#--------------------------------------------------
-		maskidx = [np.arange(vis.size).reshape(vis.shape)[maskback]]
-		maskvalue = [self.maskvalue]
-		maskidx.append(np.arange(self.mask.size).reshape(self.mask.shape)[self.maskmanual])
-		#--------------------------------------------------
-		vistype = self.antarray.vistype[:-1]
-		vis = self.antarray.vis[:,:,self.antarray.visorder]
-		if (vistype == 'auto') : vis = vis.real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]
-		vis[maskback] = self.maskvalue
-		vis = np.ma.MaskedArray(vis, self.maskmanual)
-		vis = jp.ResetMasked(vis, 0, self.Nprocess)
-		maskvalue.append(vis[self.maskmanual])
-		#--------------------------------------------------
-		maskvalue = np.array([np.concatenate(maskidx), np.concatenate(maskvalue)])
-		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
-		if (self.verbose) : print 'Masking.MaskManual:  end  @', jp.Time(1)+'\n'
 
 
 

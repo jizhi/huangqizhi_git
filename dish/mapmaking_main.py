@@ -12,7 +12,7 @@ from CaliGain import *
 ##################################################
 
 
-print 'Start:', jp.Time(1)
+print 'Start:', jp.Time(1)+'\n'
 outdir = jp.Outdir(0, 'file')
 
 
@@ -42,36 +42,44 @@ antarray.SelectVisType('auto1')
 antarray.SelectChannel([3])
 
 
+
 ##################################################
 
 
 masking = Masking(antarray)
-
-#pixstart, pixlength, pixperiod = 1000, 5, 10000
-#masking.MaskNoiseSource(pixstart, pixlength, pixperiod)
 
 
 freq = 1400
 nfreq = abs(antarray.Ant.freq-freq)
 nfreq = np.where(nfreq==nfreq.min())[0][0]
 ntimemax = 69104
+nfreq = 204
 
 
-timeper, timetimes = 60, 1
+axis, per, times = 0, 60, 1
+axis, per, times = 1, 7, 1
 nsigma, nloop, threshold = 4, 2, 0.001
-filtersize = None
 
-#masking.MaskLoop(timeper=timeper, timetimes=timetimes, nsigma=nsigma, nloop=nloop, threshold=threshold, filtersize=filtersize)
+#masking.MaskLoop(axis=axis, per=per, times=times, nsigma=nsigma, nloop=nloop, threshold=threshold)
 
 
 #vis = antarray.vis[:,:,antarray.visorder][:,:,None]
-#vis[masking.masknoisesource] += 3e4
+##vis[masking.masknoisesource] += 3e4
 #x = np.arange(len(vis))
-#plt.plot(x, vis[:,1,0], 'b-')
+#plt.plot(x, vis[:,nfreq,0], 'b-')
 #vis[masking.mask] = masking.maskvalue
-#plt.plot(x, vis[:,1,0], 'r-')
+#plt.plot(x, vis[:,nfreq,0], 'r-')
 #plt.show()
-#
+#jp.Raise()
+
+
+#vis = antarray.vis[:,:,antarray.visorder][:,:,None]
+##vis[masking.masknoisesource] += 3e4
+#x = np.arange(vis.shape[1])
+#plt.plot(x, vis[40000,:,0], 'b-')
+#vis[masking.mask] = masking.maskvalue
+#plt.plot(x, vis[40000,:,0], 'r-')
+#plt.show()
 #jp.Raise()
 
 
@@ -82,12 +90,12 @@ caligain = CaliGain(antarray, masking)
 
 caligain.Window(4*60)
 
-caligain.Gainnu()
-jp.Raise()
+#caligain.Gainnu()  # OK, very good
 
 #caligain.See(3, 100, nfreq)
 
-caligain.Gaint()
+masktime = (5000,11000)
+caligain.Gaint(masktime=masktime, legendsize=7, legendloc=8)
 
 #caligain.Smooth([3,1], 100)
 jp.Raise()

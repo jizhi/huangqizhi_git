@@ -34,6 +34,19 @@ def plt_usetex( tf ) :
 
 
 
+def plt_legend() : 
+	print ' 2     9    0/1'
+	print ' 6    10    5/7'
+	print ' 3     8     4'
+
+
+
+##################################################
+##################################################
+##################################################
+
+
+
 def plt_period( x0, dx, period, fmt='%i' ) : 
 	'''
 	x0: x_original, x0 from x0[0] to x0[0]+period
@@ -230,18 +243,6 @@ def plt_axes( xy='both', which='both', times=[], fmt='%i', fontsize=12, ticksize
 		plt_xaxes( xy=xy, which=which, times=times[0], fmt=fmt[0], fontsize=fontsize[0], ticksize=ticksize[0], direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
 		plt_yaxes( xy=xy, which=which, times=times[1], fmt=fmt[1], fontsize=fontsize[1], ticksize=ticksize[1], direction=direction, label2On=label2On, color=color, showminor=showminor, pcolor=pcolor)
 
-
-
-##################################################
-##################################################
-##################################################
-
-
-
-def plt_legend() : 
-	print ' 2     9    0/1'
-	print ' 6    10    5/7'
-	print ' 3     8     4'
 
 
 ##################################################

@@ -1,9 +1,10 @@
 from Other import *
 import multiprocessing
 from ShellCmd import *
+import numpy as np
+
 
 ##################################################
-
 
 
 def NprocessCPU( Nprocess=None, warning=True ) : 
@@ -42,7 +43,7 @@ class PoolFor( object ) :
 	data = np.concatenate(data, 0)
 	"""
 
-	def __init__( self, Nstart, Nend, Nprocess=None, info=False, warning=True ) :
+	def __init__( self, Nstart, Nend, Nprocess=None, info=False, warning=False ) :
 		self.zero = False
 		if (Nend-Nstart <= 0) : 
 			Raise(Warning, 'Nend-Nstart='+str(Nend-Nstart)+'<=0, return None')

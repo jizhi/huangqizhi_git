@@ -34,9 +34,14 @@ class IsType( object ) :
 		if (typestr == 'dict') : return True
 		else : return False
 	
-	def isnparray( self, a ) : 
+	def isndarray( self, a ) : 
 		typestr = str(type(a)).split("'")[-2].split('.')[-1]
 		if (typestr == 'ndarray') : return True
+		else : return False
+
+	def ismaskedarray( self, a ) : 
+		typestr = str(type(a)).split("'")[-2].split('.')[-1]
+		if (typestr == 'MaskedArray') : return True
 		else : return False
 	
 	def isclass( self, a ) : 
