@@ -1,5 +1,7 @@
 from Other import *
 from scipy.optimize import leastsq, curve_fit
+from npfmt import *
+import warnings
 
 
 
@@ -87,39 +89,40 @@ from scipy.optimize import leastsq, curve_fit
 ##################################################
 
 
-def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) : 
-		'''
-		scipy.optime.leastsq( residuals, p0, args, maxfev )
+def Leastsq( func, x, y, p0, sigma=None, maxfev=10000, warning=False ) : 
+	'''
+	scipy.optime.leastsq( residuals, p0, args, maxfev )
 
-		p0: Initial guess of the parameters in func.
+	p0: Initial guess of the parameters in func.
 
-		maxfev: The maximum number of calls to the function.
+	maxfev: The maximum number of calls to the function.
 
-		residuals:
-			lestsq do "min(sum(residuals(y)**2)", so residuals is a function like:
-			def residuals( para, func, xdata, ydata, weight ) : 
-				err = weight * (ydata - func(xdata, para))
-				return err
+	residuals:
+		lestsq do "min(sum(residuals(y)**2)", so residuals is a function like:
+		def residuals( para, func, xdata, ydata, weight ) : 
+			err = weight * (ydata - func(xdata, para))
+			return err
 
-		func:
-			The fitting function of xdata-ydata:
-				ydata ~ func( xdata, para )
+	func:
+		The fitting function of xdata-ydata:
+			ydata ~ func( xdata, para )
 
-		sigma:
-			1/sigma = weight
-			The sigma or weight of each y data
+	sigma:
+		1/sigma = weight
+		The sigma or weight of each y data
 
-		return: 
-			p
-		'''
-		if (sigma is None) : sigma = 1
-		x, y, p0, sigma = npfmt(x), npfmt(y), npfmt(p0), npfmt(sigma)
-		def residuals(para, func, xdata, ydata, weight) :  
-			return weight * (ydata - func(xdata, para))
-		args = (func, x, y, 1./sigma)
-		p = leastsq(residuals, p0, args=args, maxfev=maxfev)[0]
-		if (p.size == 1) : p = p.take(0)
-		return p
+	return: 
+		p, type(p)==list although size==1
+	'''
+	if (not warning) : warnings.filterwarnings("ignore")
+	if (sigma is None) : sigma = 1
+	x, y, p0, sigma = npfmt(x), npfmt(y), npfmt(p0), npfmt(sigma)
+	def residuals(para, func, xdata, ydata, weight) :  
+		return weight * (ydata - func(xdata, para))
+	args = (func, x, y, 1./sigma)
+	p = leastsq(residuals, p0, args=args, maxfev=maxfev)[0]
+	if (not warning) : warnings.filters.pop(0)
+	return p
 
 
 ##################################################
@@ -127,7 +130,7 @@ def Leastsq( func, x, y, p0, sigma=None, maxfev=10000 ) :
 ##################################################
 
 
-def FuncFit( func, x, y, p0, sigma=None, maxfev=10000 ) : 
+def FuncFit( func, x, y, p0, sigma=None, maxfev=10000, warning=False ) : 
 	'''
 	Need scipy.__version__ >= 0.15
 	Use scipy.optime.curve_fit()
@@ -136,9 +139,10 @@ def FuncFit( func, x, y, p0, sigma=None, maxfev=10000 ) :
 		y = func(x, p)
 
 	return:
-		[p, perr]
+		[p, perr], type(p)==type(perr)==list
 	'''
 	##############################
+	if (not warning) : warnings.filterwarnings("ignore")
 	x, y, p0 = npfmt(x), npfmt(y), npfmt(p0)
 	def fitfunc( *arg ) : return func(arg[0], arg[1:])
 	if (sigma is None) : abssigma = False
@@ -151,11 +155,21 @@ def FuncFit( func, x, y, p0, sigma=None, maxfev=10000 ) :
 		p[np.isinf(p)] = p0[np.isinf(p)]
 		perr[np.isnan(perr)] = 0
 		perr[np.isinf(perr)] = 0
+#	except TypeError : 
 	except : 
-		p = npfmt(Leastsq(func, x, y, p0, sigma, maxfev))
-		perr = np.zeros(len(p))
-	if (p.size == 1) : 
-		p, perr = p.take(0), perr.take(0)
+		try : 
+			res = curve_fit(fitfunc, x, y, p0, sigma, maxfev=maxfev)
+			p, perr = res[:2]
+			perr = abs(np.diag(perr))**0.5
+			p[np.isnan(p)] = p0[np.isnan(p)]
+			p[np.isinf(p)] = p0[np.isinf(p)]
+			perr[np.isnan(perr)] = 0
+			perr[np.isinf(perr)] = 0
+		except : 
+			p =npfmt(Leastsq(func, x, y, p0, sigma, maxfev, warning))
+			perr = np.zeros(len(p))
+#	if (p.size == 1) : p, perr = p.take(0), perr.take(0)
+	if (not warning) : warnings.filters.pop(0)
 	return [p, perr]
 
 

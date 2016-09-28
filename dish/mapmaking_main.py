@@ -6,7 +6,7 @@ from jizhipy.Plot import *
 from AntArray import *
 from Masking import *
 from CaliGain import *
-#from CaliPhase import *
+from CaliPhase import *
 #from CaliTemperature import *
 #from MapMaking import *
 ##################################################
@@ -35,11 +35,12 @@ antarray = AntArray(hdf5dir)
 
 antarray.WhichHdf5('transitsource')
 
-#antarray.SelectVisType('cross1')
-#antarray.SelectChannel([3,5])
+antarray.SelectVisType('cross1')
+#antarray.SelectChannel([3, 7])
+antarray.SelectChannel([1, 3, 7])
 
-antarray.SelectVisType('auto1')
-antarray.SelectChannel([3])
+#antarray.SelectVisType('auto1')
+#antarray.SelectChannel([3])
 
 
 
@@ -53,11 +54,10 @@ freq = 1400
 nfreq = abs(antarray.Ant.freq-freq)
 nfreq = np.where(nfreq==nfreq.min())[0][0]
 ntimemax = 69104
-nfreq = 204
 
 
 axis, per, times = 0, 60, 1
-axis, per, times = 1, 7, 1
+#axis, per, times = 1, 7, 1
 nsigma, nloop, threshold = 4, 2, 0.001
 
 #masking.MaskLoop(axis=axis, per=per, times=times, nsigma=nsigma, nloop=nloop, threshold=threshold)
@@ -88,42 +88,64 @@ nsigma, nloop, threshold = 4, 2, 0.001
 
 caligain = CaliGain(antarray, masking)
 
-caligain.Window(4*60)
-
+#caligain.Window(4*60)
+#
 #caligain.Gainnu()  # OK, very good
-
-#caligain.See(3, 100, nfreq)
-
-masktime = (5000,11000)
-caligain.Gaint(masktime=masktime, legendsize=7, legendloc=8)
-
-#caligain.Smooth([3,1], 100)
-jp.Raise()
-
-
-
-
-
-
-
+#
+###caligain.See(3, 100, nfreq)
+#
+#masktime = (5000,11000)
+#caligain.Gaint(masktime=masktime, legendsize=7, legendloc=8)
 
 
 ##################################################
 
 
-caliphase = CaliPhase(antarray, masking)
+fwhm2sigmafactor = 2.287
+caliphase = CaliPhase(antarray, masking, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200)
 RA, Dec = brightsource.RADec(sourcename)
 print sourcename, '  RA =', RA, '  Dec =', Dec
 caliphase.RADec(RA, Dec)
-caliphase.Fringe(6)
 
-#caliphase.Smooth(20, 3)
-caliphase.FitBeam()
-caliphase.FitVis()
-caliphase.Plot(1)
-Raise()
+
+#caliphase.Fringe(nsigma=2)
+#caliphase.Smooth(200)
+#
+#vis = caliphase.vis
+#np.save('vis.data', vis.data)
+#np.save('vis.mask', vis.mask)
+#np.save('timem', caliphase.timem)
+#jp.Raise()
+
+vis = np.load('vis.data.npy')
+mask = np.load('vis.mask.npy')
+timem = np.load('timem.npy')
+vis = np.ma.MaskedArray(vis, mask)
+caliphase.vis = vis
+caliphase.timem = timem
+
+
+#caliphase.FitBeam()
+caliphase.Ampb = np.load('mapmaking_main_output/CaliPhase_output/Ampb.npy')
+caliphase.Timeb = np.load('mapmaking_main_output/CaliPhase_output/Timeb.npy')
+caliphase.Sigmab = np.load('mapmaking_main_output/CaliPhase_output/Sigmab.npy')
+caliphase.Phasens = np.load('mapmaking_main_output/CaliPhase_output/Phasens.npy')
+
+
+#caliphase.Nprocess = 2
+caliphase.FitPhase()
+#jp.Raise()
+
+
+#caliphase.FitVis()
+
+
+caliphase.Plot(dyDeff=0.1, dyLew=0.05, Nprocess=1)
+jp.Raise()
+
 
 ##################################################
+
 
 # nsource = 9
 #calitemp = CaliTemperature(antarray, 750, (1,25))

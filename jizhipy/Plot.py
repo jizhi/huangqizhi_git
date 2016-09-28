@@ -46,6 +46,28 @@ def plt_legend() :
 ##################################################
 
 
+def plt_axisformat( axis, fmt='sci' ) : 
+	'''
+	axis: 'x' or 'y'
+
+	fmt: 
+		(1) '%d' or '%.2f' or '%.1e' and so on: 
+			use plt.gca().xaxis.set_major_formatter(FormatStrFormatter(fmt))
+
+		(2) 'sci'/'scientific' or 'plain'(turns off scientific notation): 
+			use plt.ticklabel_format(axis=axis, style=fmt)
+	'''
+	if ('%' in fmt.lower()) : 
+		if (axis.lower() == 'x') : plt.gca().xaxis.set_major_formatter(FormatStrFormatter(fmt))
+		else : plt.gca().yaxis.set_major_formatter(FormatStrFormatter(fmt))
+	else : plt.ticklabel_format(axis=axis, style=fmt, scilimits=(0,0))
+	
+
+##################################################
+##################################################
+##################################################
+
+
 
 def plt_period( x0, dx, period, fmt='%i' ) : 
 	'''

@@ -112,7 +112,6 @@ class _AntArrayAnt( object ) : pass
 
 
 class AntArray( object ) : 
-	dtype = 'class:'+sys._getframe().f_code.co_name
 	''' This class just reads and handles the information in the HDF5 file, won't change anything ! 
 	
 	self.MaskChannel(), self.SelectChannel():
@@ -130,7 +129,7 @@ class AntArray( object ) :
 		Are used to channelpos[selectchannel]
 	'''
 
-	def __init__( self, hdf5dir=None ) : 
+	def __init__( self, hdf5dir=None, verbose=True ) : 
 		'''
 		self.__dict__.keys() 
 			= [WhichHdf5(), MaskChannel(), SelectChannel(), SelectVisType(), Blorder, Hdf5, Ant, vis, vistype, visorder]
@@ -148,6 +147,7 @@ class AntArray( object ) :
 		hdf5dir:
 			In this directory/folder, all .hdf5 are one continuum observation split into several files. If one file one observation, this hdf5dir must just contain one file.
 		'''
+		self.verbose = verbose
 		if (hdf5dir is None) : return
 		self.Blorder = _AntArrayBlorder()
 		self.Hdf5    = _AntArrayHdf5()

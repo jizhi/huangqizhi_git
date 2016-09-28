@@ -7,7 +7,8 @@ import numpy as np
 ##################################################
 
 
-def NprocessCPU( Nprocess=None, warning=True ) : 
+def NprocessCPU( Nprocess=None, verbose=True, hyper=True ) : 
+	''' hyper: whether use hyper-threading, True/False '''
 	try : Nprocess = int(round(Nprocess))
 	except : Nprocess = None
 	uname = ShellCmd('uname')[0]
@@ -20,9 +21,11 @@ def NprocessCPU( Nprocess=None, warning=True ) :
 	cores   = int(cores.split(':')[-1])
 	threads = int(threads.split(':')[-1])  # total
 	cpuinfo = 'CPU INFO: '+str(cores)+' cores '+str(threads)+' threads'
-	if (Nprocess is None): Nprocess = threads
+	if (Nprocess is None): 
+		if (hyper) : Nprocess = threads
+		else : Nprocess = cores
 	elif (Nprocess <= 1) : Nprocess = 1
-	if (Nprocess>threads and warning) : Raise(Warning, cpuinfo+', but now  Nprocess='+str(Nprocess))
+	if (Nprocess>threads and verbose) : Raise(Warning, cpuinfo+', but now  Nprocess='+str(Nprocess))
 	return [Nprocess, cores, threads, cpuinfo]
 
 
@@ -43,13 +46,13 @@ class PoolFor( object ) :
 	data = np.concatenate(data, 0)
 	"""
 
-	def __init__( self, Nstart, Nend, Nprocess=None, info=False, warning=False ) :
+	def __init__( self, Nstart, Nend, Nprocess=None, info=False, verbose=False ) :
 		self.zero = False
 		if (Nend-Nstart <= 0) : 
 			Raise(Warning, 'Nend-Nstart='+str(Nend-Nstart)+'<=0, return None')
 			self.zero = True
 			return
-		Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, warning)
+		Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, verbose)
 		if (Nend-Nstart < 2*Nprocess) : Nprocess = 1
 		if (info) : print 'Open '+str(Nprocess)+' processes. '+cpuinfo
 		self.Nstart, self.Nend, self.Nprocess = Nstart, Nend, Nprocess
@@ -65,6 +68,9 @@ class PoolFor( object ) :
 	def map_async( self, func, send=None, bcast=None ) : 
 		'''
 		If use apply() or map(), we can stop the pool program with Ctrl-c. However, if use apply_async().get(xxx) or map_async().get(xxx), we can use Ctrl-c to stop the program at any time.
+
+		iterable:
+			iterable[0] = [n1, n2, PoolWorder-i], i=1,2,..,Nprocess
 
 		func:
 			_DoMultiprocess()
@@ -100,5 +106,6 @@ class PoolFor( object ) :
 		self.pool.close()
 		self.pool.join()
 		return self.data
+
 
 

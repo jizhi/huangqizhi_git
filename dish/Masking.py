@@ -60,8 +60,7 @@ class Masking( object ) :
 
 
 	def __init__( self, antarray=None, Nprocess=None, verbose=True ) : 
-		self.Nprocess = Nprocess
-		self.verbose = verbose
+		self.Nprocess, self.verbose = Nprocess, verbose
 		if (antarray is None) : return
 		self.antarray = antarray  #@ will it increast the memory?
 		# Always have self.mask.shape == vis.shape
@@ -75,10 +74,12 @@ class Masking( object ) :
 		else : dtype = value.dtype
 		self.maskvalue = np.array([], dtype)
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
+		class _Params( object ) : pass
+		self.Params = _Params()
 
 
 
-	def MaskNoiseSource( self, pixstart, pixlength, pixperiod ) :
+	def MaskNoiseSource( self, pixstart, pixlength, pixperiod, params=False ) :
 		'''
 		self.noisesource.pixstart
 		self.noisesource.pixlength
@@ -121,11 +122,17 @@ class Masking( object ) :
 		maskvalue = np.concatenate([maskothervalue, masknoisesourcevalue])
 		maskvalue = np.array([maskidx, maskvalue], self.maskvalue.dtype)
 		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
+		#--------------------------------------------------
+		if (params) : 
+			class _Params( object ) : pass
+			Params = _Params()
+			Params.__dict__.update({'pixstart':self.noisesource.pixstart, 'pixlength':self.noisesource.pixlength, 'pixperiod':self.noisesource.pixperiod})
+			self.Params.MaskNoisesourceParams = Params
 		if (self.verbose) : print 'Masking.MaskNoisesource:  end  @', jp.Time(1)+'\n'
 
 
 
-	def MaskLoop( self, axis, per=60, times=1, nsigma=5, nloop=None, threshold=None, array=None, arraymaskvalue=None ) : 
+	def MaskLoop( self, axis, per=60, times=1, nsigma=5, nloop=None, threshold=None, params=False, array=None, arraymaskvalue=None ) : 
 		'''
 		axis:
 			Along which axis?
@@ -149,6 +156,9 @@ class Masking( object ) :
 		If nloop!=None and threshold!=None, use one that satisfies first
 		If nloop==None and threshold==None, set nloop=10, threshold=0.001
 
+		params:
+			True or False, update parameters of this MaskLoop() to self.Params
+
 		if (array is None) : 
 			self.mask, self.maskloop, self.maskvalue
 		else : return [array_new, arraymaskvalue_new]
@@ -170,6 +180,15 @@ class Masking( object ) :
 		elif (not nloop and threshold) : nloop, strnloop = 100, 'None'
 		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
 		else : nloop, threshold
+		#--------------------------------------------------
+		if (params) : 
+			class _Params( object ) : pass
+			Params = _Params()
+			Params.__dict__.update({'axis':axis, 'per':per, 'times':times, 'nsigma':nsigma, 'nloop':nloop, 'threshold':threshold})
+			try : 
+				n = len(self.Params.MaskLoopParams.__dict__.keys())
+				self.Params.MaskLoopParams.__dict__['p'+str(n+1)] = Params
+			except : self.Params.MaskLoopParams.p1 = Params
 		#--------------------------------------------------
 		if (self.verbose) : print ('    axis=%i, per=%i, times=%i, nsigma=%.1f, nloop=%i, threshold=%.3f' % (axis, per, times, nsigma, nloop, threshold))
 		vistype = self.antarray.vistype[:-1]

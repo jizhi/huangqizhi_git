@@ -17,6 +17,13 @@ class Cd( object ) :
 
 
 
+def Mkdir( path ) : 
+	if (path[-1] != '/') : path += '/'
+	if (not os.path.exists(path)) : os.makedirs(path)
+	return path
+
+
+
 def ShellCmd( cmd ) : 
 	'''
 	Absolutely use shell command, and return the strings that should be printed on the screen

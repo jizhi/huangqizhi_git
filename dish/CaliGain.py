@@ -10,7 +10,7 @@ import scipy.signal as spsn
 class CaliGain( object ) : 
 
 
-	def __init__(self, antarray=None, masking=None, Nprocess=None, verbose=True):
+	def __init__( self, antarray=None, masking=None, Nprocess=None, verbose=True ) : 
 		self.Nprocess = Nprocess
 		self.verbose = verbose
 		if (antarray is not None) : self.antarray = antarray
