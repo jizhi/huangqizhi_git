@@ -148,7 +148,7 @@ class CaliGain( object ) :
 			self.gaint = self.gaint.T
 			mask = self.gaint.mask.copy()      #@
 			maskvalue = self.gaint.data[mask]  #@
-			self.gaint = jp.ResetMasked(self.gaint, 0, self.Nprocess)
+			self.gaint = jp.ResetMasked(self.gaint,0,self.Nprocess)
 		#--------------------------------------------------
 		self.gaintmean = self.gaint / self.gaint.mean(0)
 		n = jp.SelectLeastsq(self.gaintmean, 1, 10)

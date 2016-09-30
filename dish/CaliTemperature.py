@@ -1,3 +1,5 @@
+import jizhipy as jp
+from jizhipy.Plot import *
 from AntArray import *
 from Masking import *
 ##################################################
@@ -6,48 +8,110 @@ from Masking import *
 class CaliTemperature( object ) : 
 
 
-	def __init__( self, antarray, freq, nhdf5range=None ) :
+	def __init__( self, caligain=None, caliphase=None ) : 
+		
+
+
+	def __init__( self, freq, antarraylist=None, maskinglist=None, caligainlist=None, caliphaselist=None ) :
 		'''
 		freq:
 			in MHz, which freq do you select		
 			Must be scale, not list
 
-		nhdf5range: 
-			int or int pair
-			nhdf5range=4: select 4th file
-			nhdf5range=(4,9) or [4,9]: select range(4,9)-th files, include 4 but exclude 9
-			If ==None, nhdf5range=antarray.Hdf5.nhdf5transit[-1]
+		antarraylist:
+			If we want to calibrate 24 hours data which has 24 hdf5 filts (1 hour per file), we need to mask all files, calibrate the gain and the phase of all files
+			antarraylist is [antarray1, antarray2, antarray3, ...]
+
+		maskinglist, caligainlist:
+			The same as antarraylist
+
+		caliphaselist:
+			(1) One caliphase: all antarraylist use the same caliphase
+			(2) List of caliphase [caliphase1, caliphase2, ...], must len(caliphase)==len(antarraylist)
 		'''
-		if (freq is None) : freq = 750
-		if (antarray is not None) : 
-			if (nhdf5range is None) : 
-				try : nhdf5range = antarray.Hdf5.nhdf5transit[-1]
-				except : nhdf5range = antarray.Hdf5.nhdf5
+		istype = jp.IsType()
+		n1 = n2 = n3 = n4 = 0
+		#--------------------------------------------------
+		if (antarraylist is not None) : 
+			if (not istype.islist(antarraylist) and not istype.istuple(antarraylist)) : antarraylist = [antarraylist]
 			self.antarray = antarray
-		try : nfreq = abs(self.antarray.Ant.freq-self.freq)
-		except : pass
-		self.freq, n5 = freq, np.sort(npfmt(nhdf5range)[:2])
-		if (n5.size == 1) : self.nhdf5list = n5
-		else : self.nhdf5list = np.arange(n5[0], n5[1])
-		self.nfreq = np.where(nfreq==nfreq.min())[0][0]
-		self._Outdir()
-		self._smoothdone = False
+		try : n1 = len(self.antarray) # Must exist antarraylist
+		except : jp.Raise(Exception, 'Missing  self.antarraylist')
+		#--------------------------------------------------
+		if (maskinglist is not None) : 
+			if (not istype.islist(maskinglist) and not istype.istuple(maskinglist)) : maskinglist = [maskinglist]
+			self.maskinglist = maskinglist
+			n2 = len(self.maskinglist)
+			if (n2 != n1) : jp.Raise(Exception, 'len: antarraylist='+str(n1)+' != maskinglist='+str(n2))
+		#--------------------------------------------------
+		if (caligainlist is not None) : 
+			if (not istype.islist(caligainlist) and not istype.istuple(caligainlist)) : caligainlist = [caligainlist]
+			self.caligainlist = caligainlist
+			n3 = len(self.caligainlist)
+			if (n3 != n1) : jp.Raise(Exception, 'len: antarraylist='+str(n1)+' != caligainlist='+str(n3))
+		#--------------------------------------------------
+		if (caliphaselist is not None) : 
+			if (not istype.islist(caliphaselist) and not istype.istuple(caliphaselist)) : caliphaselist = [caliphaselist]
+			self.caliphaselist = caliphaselist
+			n4 = len(caliphaselist)
+			if (n4 == 1) : n4 = len(self.antarray)
+			if (n4 != n1) : jp.Raise(Exception, 'len: antarraylist='+str(n1)+' != caliphaselist='+str(n4))
+		#--------------------------------------------------
+		if (freq is not None) : 
+			self.freq = np.array(freq).take(0)
+			nfreq = abs(self.antarraylist[0].Ant.freq - self.freq)
+			self.nfreq = np.where(nfreq==nfreq.min())[0][0]
+		else : jp.Raise(Exception, 'Must set "freq"')
+		#--------------------------------------------------
+		self.outdir = jp.Outdir((None,'file'), (0,'file'))
 
 
-	def _Outdir( self ) : 
-		outdir = sys.argv[0][:-3] + '_output/'
-		if (outdir[:2]=='./') : outdir = outdir[2:]
-		outdir+=self.antarray.Hdf5.hdf5dir[:-1].split('/')[-1]+'/'
-		self.outdir = outdir + self.dtype[6:]+'/'
-		mkdir(self.outdir)
+
+	def Calibrator( self, fluxdensity=None, sourcename=None ) : 
+		'''
+		Just need fluxdensity or sourcename (one of two)
+
+		fluxdensity:
+			in Jy, at self.freq
+			Use this first
+
+		sourcename:
+			Format of the sourcename, CygA as an example:
+				sourcename = 'CygA' or 'Cygnus_A'
+		'''
+		if (fluxdensity is not None) : self.flux = fluxdensity
+		elif (sourcename is not None) : 
+			bs = jp.BrightSource()
+			self.flux = bs.FluxDensity(sourcename, self.freq)
+
 
 
 	def Vis( self ) : 
 		'''
+		Merge antarraylist
+		Take the visibility
 		nauto = self.antarray.Blorder.auto.size
 		self.vis[:,:nauto] is auto
 		self.vis[:,nauto:] is cross1
 		'''
+		vis = []
+		for i in xrange(len(self.antarraylist)) : 
+			visi = self.antarraylist[i].vis[:,self.nfreq,self.antarraylist[i].visorder]
+			if (len(visi.shape) == 1) : visi = visi[:,None]
+			vis.append( visi )
+		vis = np.concatenate(vis, 0)
+		#--------------------------------------------------
+		if ('caligainlist' in self.__dict__.keys()) : 
+			gaint = []
+			for i in xrange(len(self.antarraylist)) : 
+				gaint.append(self.caligainlist[i].gaint[:,self.nfreq])
+			gaint = np.concatenate(gaint, 0)
+		#--------------------------------------------------
+			
+
+
+
+
 		antarray = AntArray(self.antarray.Hdf5.hdf5dir)
 		auto, cross1 = [], []
 		for i in xrange(self.nhdf5list.size) : 

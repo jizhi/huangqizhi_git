@@ -18,6 +18,7 @@ from FAST21cm import FAST21cm
 from FuncFit import Leastsq, FuncFit
 from Gaussian import GaussianValue, LogNormalValue
 from GSM import GSM
+from Interp1d import Interp1d
 from Invalid import Invalid
 from IsType import IsType
 from Jy2K import Jy2K

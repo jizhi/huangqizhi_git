@@ -2,6 +2,7 @@ from Other import *
 import multiprocessing
 from ShellCmd import *
 import numpy as np
+import signal
 
 
 ##################################################
@@ -53,7 +54,7 @@ class PoolFor( object ) :
 			self.zero = True
 			return
 		Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, verbose)
-		if (Nend-Nstart < 2*Nprocess) : Nprocess = 1
+		if (Nend-Nstart < Nprocess) : Nprocess = 1
 		if (info) : print 'Open '+str(Nprocess)+' processes. '+cpuinfo
 		self.Nstart, self.Nend, self.Nprocess = Nstart, Nend, Nprocess
 		self.pool = multiprocessing.Pool(Nprocess)
@@ -97,7 +98,7 @@ class PoolFor( object ) :
 			sendtmp = ()
 			for j in xrange(len(send)) : 
 				if (send[j] is None) : sendtmp += (None,)
-				else : sendtmp += (send[j][nsplit[i][0]:nsplit[i][1]],)
+				else : sendtmp+=(send[j][nsplit[i][0]:nsplit[i][1]],)
 			if (len(sendtmp) == 1) : sendtmp = sendtmp[0]
 			iterable[i] += [sendtmp, bcast]
 		#--------------------------------------------------

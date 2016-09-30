@@ -24,7 +24,9 @@ def SmoothWeight( per, times ) :
 
 
 def _Multiprocess_Smooth( iterable ) : 
-	array, weight, lw, dnwa, dnwa1, dnwa2 = iterable
+	n1, n2 = iterable[0]
+	array = iterable[1].T
+	weight, lw, dnwa, dnwa1, dnwa2 = iterable[2]
 	b = array*0
 	for i in xrange(len(array)) : 
 		if (i < lw/2) : 
@@ -92,10 +94,11 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 	# Move axis to axis=0
 	array = ArrayAxis(array, axis, 0, 'move')
 	shape0, shape = array.shape, array.shape
-	# 3D to 2D
+	# ND to 2D
 	if (len(shape0) > 2) : 
 		array = array.reshape(shape[0], np.prod(shape[1:]))
 		shape = array.shape
+	array = array.T  #@
 	#--------------------------------------------------
 	if (not reduceshape) : 
 		weight = SmoothWeight( per, times )
@@ -121,15 +124,11 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 			Nprocess = NprocessCPU(Nprocess)[0]
 			if (Nprocess > shape[1]) : Nprocess = shape[1]
 		if (Nprocess == 1) : 
-			iterable = (array, weight, lw, dnwa, dnwa1, dnwa2)
+			iterable = ((0,0), array, [weight, lw, dnwa, dnwa1, dnwa2])
 			b = _Multiprocess_Smooth(iterable)
 		else : 
-			nlist = np.linspace(0, shape[1], Nprocess+1).astype(int)
-			iterable = []
-			for i in xrange(len(nlist)-1) : 
-				iterable.append( (array[:,nlist[i]:nlist[i+1]], weight, lw, dnwa, dnwa1, dnwa2) )
-			pool = multiprocessing.Pool(Nprocess)
-			b = pool.map_async(_Multiprocess_Smooth, iterable).get(10**10)
+			pool = PoolFor(0, len(array), Nprocess)
+			b = pool.map_async(_Multiprocess_Smooth, array, [weight, lw, dnwa, dnwa1, dnwa2])
 			b = np.concatenate(b, 1)
 		if (len(shape0) > 2) : b = b.reshape(shape0)
 	#--------------------------------------------------

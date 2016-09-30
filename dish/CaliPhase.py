@@ -40,9 +40,9 @@ def _DoMultiprocess_FitBeam( iterable ) :
 def _DoMultiprocess_FitPhase( iterable ) : 
 	n1, n2 = iterable[0]
 	phase, t0list = iterable[1]
-	timem, Dec, freq, bl, verbose, Nf, lat = iterable[2]
+	timem, Dec, freq, bl, verbose, Nf, lat, fitLew = iterable[2]
 	if (verbose) : progressbar = jp.ProgressBar('    pid='+str(os.getpid())+':', len(phase), False)
-	pf, plf = [], []
+	pf = []
 	#--------------------------------------------------
 	for i in xrange(n2-n1) : 
 		t0 = t0list[i] #@
@@ -55,19 +55,21 @@ def _DoMultiprocess_FitPhase( iterable ) :
 			return np.sin(angle)
 		pf.append( list(jp.FuncFit(funcNO, timem, np.sin(phase[i]), [1])[0]) )
 		#--------------------------------------------------
-#		def funcYES(x, p) : 
-#			beta =jp.Circ2Sph((x-t0)/60.*15*np.pi/180, Dec*np.pi/180)
-#			angle = 2*np.pi/(300./freq[nf]) *( p[0]*np.sin(beta) - bl[nv,1]*np.cos(beta)*np.sin((Dec-lat)*np.pi/180) ) + pf[-1][0]
-#			return np.sin(angle)
-#		pf[-1] += list(jp.FuncFit(funcYES, timem, np.sin(phase[i]), bl[nv,0])[0])
+		if (fitLew == 1) : 
+			def funcYES(x, p) : 
+				beta =jp.Circ2Sph((x-t0)/60.*15*np.pi/180, Dec*np.pi/180)
+				angle = 2*np.pi/(300./freq[nf]) *( p[0]*np.sin(beta) - bl[nv,1]*np.cos(beta)*np.sin((Dec-lat)*np.pi/180) ) + pf[-1][0]
+				return np.sin(angle)
+			pf[-1] += list(jp.FuncFit(funcYES, timem, np.sin(phase[i]), bl[nv,0])[0])
+		elif (fitLew == 2) : 
+			def funcBOTH(x, p) : 
+				beta = jp.Circ2Sph((x-t0)/60.*15*np.pi/180, Dec*np.pi/180)
+				angle = 2*np.pi/(300./freq[nf]) *( p[1]*np.sin(beta) - bl[nv,1]*np.cos(beta)*np.sin((Dec-lat)*np.pi/180) ) + p[0]
+				return np.sin(angle)
+			pf[-1] = jp.FuncFit(funcBOTH, timem, np.sin(phase[i]), [pf[-1][0], bl[nv,0]])[0]
 		#--------------------------------------------------
-		def funcBOTH(x, p) : 
-			beta =jp.Circ2Sph((x-t0)/60.*15*np.pi/180, Dec*np.pi/180)
-			angle = 2*np.pi/(300./freq[nf]) *( p[1]*np.sin(beta) - bl[nv,1]*np.cos(beta)*np.sin((Dec-lat)*np.pi/180) ) + p[0]
-			return np.sin(angle)
-		plf.append( list(jp.FuncFit(funcBOTH, timem, np.sin(phase[i]), [pf[-1][0], bl[nv,0]])[0]) )
-#	return jp.npfmt(pf)
-	return jp.npfmt(plf)
+		elif (fitLew == 0) : pf[-1] += [bl[nv,0]]
+	return jp.npfmt(pf)
 
 
 
@@ -115,30 +117,34 @@ def _DoMultiprocess_FitExp( iterable ) :
 	return jp.npfmt(pf).flatten()
 
 
+
 def _DoMultiprocess_Plot( iterable ) : 
 	n1, n2 = iterable[0]
 	array = iterable[1][:-1]
 	strbl = iterable[1][-1]
-	freq, func, color, outdir, which = iterable[2][:5]
+	freq, func, color, outdir, which, nsigma = iterable[2][:6]
 	which = which.lower()
-	if (which == 'deff') : 
-		dyDeff = iterable[2][5]
-		fwhm2sigmafactor = iterable[2][6]
-		dishdiam = iterable[2][7]
-	elif (which in ['lew', 'phaseadd', 'phase']) : 
-		bl = iterable[2][5]
-		if (which == 'lew') : dyLew = iterable[2][6]
+	if (which == 'deff') : dyDeff, fwhm2sigmafactor, dishdiam = iterable[2][-3:]
+	elif (which == 'lew') : fitLew, bl, dyLew = iterable[2][-3:]
+	elif (which in ['phaseadd', 'phase']) : fitLew, bl = iterable[2][-2:]
 	#--------------------------------------------------
 	for i in xrange(n2-n1) : # baseline
 		if (which == 'amp') : arraymax = np.array([0.,0])+1e30
-		elif (which in ['lew', 'phaseadd', 'phase') : strl = '=(%.3f, %.3f)' % tuple(bl[i][:2])
-		for j in xrange(len(array)) : # FitBeam, FitVis, ...
+		elif (which in ['lew', 'phaseadd', 'phase']) : strl = '=(%.3f, %.3f)' % tuple(bl[i][:2])
+		amean = []
+		for j in xrange(len(array)) : # Different method: FitBeam, FitVis, ...
 			if (array[j] is None) : continue
 			nmf = array[j][i].size/5
 			nmf = nmf if(nmf%2==1) else nmf+1
 			if (which == 'amp') : 
-				arraymax[j] = spsn.medfilt(array[j][i], nmf).max()
+				arrayfilt = spsn.medfilt(array[j][i], nmf)
+				arraymax[j] = arrayfilt.max()
+				amean.append(arrayfilt.mean())
+			else : 
+				n1, n2 = len(freq)/5, len(freq)*4/5
+				amean.append(array[j][i][n1:n2].mean())
 			plt.plot(freq, array[j][i], color=color[j], ls='', marker='o', markersize=3, label=func[j])
+		amean = np.array(amean).mean()
 		plt.xlim(int(round(freq.min())), int(round(freq.max())))
 		plt.xlabel(r'$\nu$ [MHz]', size=16)
 		plt_axes('x', 'both', [25,5])
@@ -149,33 +155,24 @@ def _DoMultiprocess_Plot( iterable ) :
 		#	plt_axisformat('y')
 			plt.legend()
 			plt.title('Fitted amplitude of abs(visibility), baseline='+strbl[i], size=16)
-			plt.savefig(outdir+'Amp_'+strbl[i]+'.png')
+			plt.savefig(outdir+'Amp_'+strbl[i]+'_'+str(nsigma)+'.png')
 		#--------------------------------------------------
 		elif (which == 'deff') : 
 			plt.ylabel(r'Deff$=\frac{\lambda}{%.3f \cdot \sigma}$ [m]' % fwhm2sigmafactor, size=16)
-			if (dyDeff is not None) : 
-				amean = spsn.medfilt(array[j][i], nmf).mean()
-			#	plt.ylim(amean-dyDeff, dishdiam*1.05)
-				plt.ylim(amean-dyDeff, amean+dyDeff)
+			if (dyDeff is not None) : plt.ylim(amean-dyDeff, amean+dyDeff)
 			plt_axes('y', 'both', [0.1, 0.05], '%.1f')
 			plt.legend()
 		#	plt.title(r'Fitted effective diameter Deff$=\frac{\lambda}{'+('%.3f' % fwhm2sigmafactor)+r' \cdot \sigma}$, baseline='+strbl[i], size=16)
 			plt.title(r'Fitted effective diameter ('+str(dishdiam)+'m), baseline='+strbl[i], size=16)
-			plt.savefig(outdir+'Deff_'+strbl[i]+'.png')
+			plt.savefig(outdir+'Deff_'+strbl[i]+'_'+str(nsigma)+'.png')
 		#--------------------------------------------------
 		elif (which == 'lew') : 
 			plt.ylabel(r'$L_{ew}$ [m]', size=16)
-			if (dyLew is not None) : 
-				amean = spsn.medfilt(array[j][i], nmf).mean()
-			#	sign = np.sign(amean[i][0])
-			#	if (sign == 0) : sign = 1
-			#	a1, a2 = abs(amean)-dyLew, abs(amean)+dyLew
-			#	b1, b2 = abs(bl[i][0]-dyLew), abs(bl[i][0]+dyLew)
-				plt.ylim(amean-dyLew, amean+dyLew)
-			plt_axes('y', 'both', [0.05, 0.01], '%.1f')
+			if (dyLew is not None) : plt.ylim(amean-dyLew, amean+dyLew)
+			plt_axes('y', 'both', [0.05, 0.01], '%.2f')
 			plt.legend()
-			plt.title(r'Fitted Lew, baseline='+strbl[i]+strl,size=16)
-			plt.savefig(outdir+'Lew_'+strbl[i]+'.png')
+			plt.title(r'Fitted $L_{ew}$, baseline='+strbl[i]+strl,size=16)
+			plt.savefig(outdir+'Lew_'+strbl[i]+'_'+str(nsigma)+'_m'+str(fitLew)+'.png')
 		#--------------------------------------------------
 		elif (which == 'phaseadd') : 
 			plt.ylabel('Phaseadd [deg]', size=16)
@@ -183,7 +180,7 @@ def _DoMultiprocess_Plot( iterable ) :
 			plt.ylim(0, 360)
 			plt.title('Fitted additional phase, baseline='+strbl[i]+strl, size=16)
 			plt.legend()
-			plt.savefig(outdir+'Phaseadd_'+strbl[i]+'.png')
+			plt.savefig(outdir+'Phaseadd_'+strbl[i]+'_'+str(nsigma)+'_m'+str(fitLew)+'.png')
 		plt.close()
 
 
@@ -196,17 +193,35 @@ def _DoMultiprocess_Plot( iterable ) :
 class CaliPhase( object ) : 
 
 
-	def __init__( self, antarray=None, masking=None, fwhm2sigmafactor=2.287, Nprocess=None, verbose=True ) : 
+	def __init__( self, antarray=None, masking=None, nsigma=4, fwhm2sigmafactor=2.287, fitLew=2, Nprocess=None, verbose=True ) : 
 		'''
 		antarray: instance of class:AntArray
 		masking:  instance of class:Masking
 		caligain: instance of class:CaliGain
 
-		Nprocess=100 is fast: 17 second
+		nsigma: 
+			times of the sigma of the beam/fringe
+
+		fwhm2sigmafactor:
+			sigma = lambda /Deff /fwhm2sigmafactor
+
+		fitLew:
+			=0, 1, 2
+			Different metohds to fit Lew
+
+		If ==None (except Nprocess), don't initial it
 		'''
-		self.verbose = verbose
-		try : self.fwhm2sigmafactor = float(fwhm2sigmafactor)
-		except : self.fwhm2sigmafactor = 2.287
+		if (verbose is not None) : self.verbose = verbose
+		if (nsigma is not None) : 
+			try : self.nsigma = float(nsigma)
+			except : self.nsigma = 4
+			if (self.nsigma == int(self.nsigma)) : self.nsigma = int(self.nsigma)
+		if (fwhm2sigmafactor is not None) : 
+			try : self.fwhm2sigmafactor = float(fwhm2sigmafactor)
+			except : self.fwhm2sigmafactor = 2.287
+		if (fitLew is not None) : 
+			try : self.fitLew = int(fitLew)
+			except : self.fitLew = 2
 		self.Nprocess = jp.NprocessCPU(Nprocess, verbose)[0]
 		if (antarray is not None) : 
 			if (antarray.vistype not in ['cross1','cross2']) : 
@@ -218,6 +233,7 @@ class CaliPhase( object ) :
 		if (masking is not None) : self.masking = masking
 	#	if (caligain is not None) : self.caligain = caligain
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
+		self.starttime = jp.Time(1)
 
 
 
@@ -232,10 +248,9 @@ class CaliPhase( object ) :
 
 
 
-	def Fringe( self, nsigma=4, plotnv=None, plotfreq=None ) : 
+	def Fringe( self, plotnv=None, plotfreq=None ) : 
 		'''
 		Take where is the fringe of the bright source
-		nsigma: times of the sigma of the beam
 		Generate: 
 			self.nhdf5: nhdf5 of the fringe
 			self.timerange: pixels range of the fringe
@@ -248,7 +263,12 @@ class CaliPhase( object ) :
 
 		For auto-correlation, we can't remove this shifting because we don't know how much it is, however, for cross-correlation, the base line/average? should be zero because of exp{ix}, we can remove the shifting in the cross-correlation.
 		'''
-		if (self.verbose) : print 'CaliPhase.Fringe: start @', jp.Time(1)
+		nsigma = self.nsigma
+		self.nsigma = 10
+		#--------------------------------------------------
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'CaliPhase.Fringe: start @', starttime
 		self.shift = []
 		inttime = self.antarray.Ant.inttime
 		freq = self.antarray.Ant.freq
@@ -257,14 +277,15 @@ class CaliPhase( object ) :
 		# Here we assume: fringe must be in 1 or 2 hdf5 files, not more than 2
 		#--------------------------------------------------
 		while (timerange1<0 and timerange2>Nt) : 
-			nsigma -= 0.1*ncount
+			self.nsigma -= 0.1*ncount
 			# Ideal Gaussian beam
 			sigma = 300/freq.mean()/self.antarray.Ant.dishdiam/self.fwhm2sigmafactor
 			sigma = jp.Sph2Circ(sigma, self.Dec*np.pi/180)  # rad
-			timerange = 24*3600/(2*np.pi)*nsigma*sigma/inttime # total pixels of the fringe in nsigma
+			timerange = 24*3600/(2*np.pi)*self.nsigma*sigma/inttime # total pixels of the fringe in nsigma
 			# transittime is calculated by LAST, starts from 0
 			transittime = self.antarray.Hdf5.transittimelocal[-1] /inttime  # pixels
 			timerange1, timerange2 = int(round(transittime-timerange/2)), int(round(transittime+timerange/2))  # pixels
+		if (self.nsigma == int(self.nsigma)) : self.nsigma = int(self.nsigma)
 		#--------------------------------------------------
 		if (timerange2 > Nt) : 
 			timerange1 = [timerange1, Nt]
@@ -331,30 +352,59 @@ class CaliPhase( object ) :
 		#--------------------------------------------------
 		self.timem = (np.arange(self.timerange[0,0], self.timerange[0,0]+self.vis.shape[0])+self.nhdf5[0]*Nt) *inttime/60. #@#@ min
 		visyes = visno = maskyes = maskno = 0 #@
-		#--------------------------------------------------
 		#--------------------- Plot -----------------------
-		np.save(self.outdir+'timem_minute', self.timem)
 		self._PlotFringe(self.vis, ['Real part', 'Imaginary part'], ['b', 'r'])
-		if (self.verbose) : print 'CaliPhase.Fringe:  end  @', jp.Time(1)+'\n'
+		#--------------------------------------------------
+		if (nsigma < self.nsigma) : 
+			if (nsigma == int(nsigma)) : nsigma = int(nsigma)
+			dn = 1.*nsigma/self.nsigma * self.timem.size
+			self.nsigma = nsigma
+			n1, n2 = dn/2, self.timem.size-dn/2
+			self.timemlarger = self.timem.copy()
+			self.vislarger   = self.vis.copy()
+			self.timem = self.timem[n1:n2]
+			self.vis   = self.vis[n1:n2]
+			self._PlotFringe(self.vis, ['Real part', 'Imaginary part'], ['b', 'r'])
+		else : 
+			self.timemlarger = self.timem
+			self.vislarger   = self.vis
+		#--------------------------------------------------
+		np.save(self.outdir+'timem_minute_'+str(self.nsigma), self.timem)
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'CaliPhase.Fringe:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
+
 
 
 
 	def Smooth( self, timetimes=100 ) : 
 		''' Smooth(self.vis, 0, 3, timetimes) '''
-		if (self.verbose) : print 'CaliPhase.Smooth: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'CaliPhase.Smooth: start @', starttime
 		array = [self.vis]
 		mask = self.vis.mask.copy()
 		self.vis = jp.Smooth(self.vis.data, 0, 3, timetimes, Nprocess=self.Nprocess)
 		self.vis = np.ma.MaskedArray(self.vis, mask)
 		array.append(self.vis)
 		self._PlotFringe(array, [['Real part','Imaginary part'],['Smoothed','Smoothed']], [['b','r'],['m','g']], [1,3])
-		if (self.verbose) : print 'CaliPhase.Smooth:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'CaliPhase.Smooth:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
 	def FitBeam( self ) : 
 		''' Fit the beam with abs(vis) '''
-		if (self.verbose) : print 'CaliPhase.FitBeam: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'CaliPhase.FitBeam: start @', starttime
 		# Initial guess
 		inttime = self.antarray.Ant.inttime
 		s0 = 300/self.antarray.Ant.freq.mean()/self.antarray.Ant.dishdiam/2.287
@@ -378,14 +428,19 @@ class CaliPhase( object ) :
 		self.Ampb = abs(self.Ampb)
 		self.Sigmab = abs(self.Sigmab)
 		#--------------------------------------------------
-		np.save(self.outdir+'Ampb.npy'  , self.Ampb  )
-		np.save(self.outdir+'Timeb.npy' , self.Timeb )
-		np.save(self.outdir+'Sigmab.npy', self.Sigmab)
+		np.save(self.outdir+'Ampb_'+str(self.nsigma)+'.npy', self.Ampb)
+		np.save(self.outdir+'Timeb_'+str(self.nsigma)+'.npy',self.Timeb)
+		np.save(self.outdir+'Sigmab_'+str(self.nsigma)+'.npy', self.Sigmab)
 		bl =self.antarray.Blorder.baseline[self.antarray.visorder]
 		self.Phasens = 2*np.pi/300*self.antarray.Ant.freq[:,None]*(-bl[:,1][None,:])*np.sin((self.Dec-self.antarray.Ant.lonlat[1])*np.pi/180)
 		np.save(self.outdir+'Phasens.npy', self.Phasens)
 		# vis * exp(-1j*Phasens) * exp(-1j*Phaseadd)
-		if (self.verbose) : print 'CaliPhase.FitBeam:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'CaliPhase.FitBeam:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
@@ -395,7 +450,9 @@ class CaliPhase( object ) :
 		(2) Also because fringe is not sensitive enough to Lew, different range of fringe (nsigma=1, 2, 3, ...) have very different Lew.
 		'''
 		if ('Timeb' not in self.__dict__.keys()) : self.FitBeam()
-		if (self.verbose) : print 'CaliPhase.FitPhase: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'CaliPhase.FitPhase: start @', starttime
 		bl =self.antarray.Blorder.baseline[self.antarray.visorder]
 		freq = self.antarray.Ant.freq
 		inttime = self.antarray.Ant.inttime
@@ -409,18 +466,24 @@ class CaliPhase( object ) :
 		#--------------------------------------------------
 		pool = jp.PoolFor(0, len(phase), self.Nprocess)
 		send = (phase, self.Timeb.T.flatten())
-		bcast = (self.timem, self.Dec, freq, bl, self.verbose, shape[1], self.antarray.Ant.lonlat[1])
+		bcast = (self.timem, self.Dec, freq, bl, self.verbose, shape[1], self.antarray.Ant.lonlat[1], self.fitLew)
 		pf = pool.map_async(_DoMultiprocess_FitPhase, send, bcast)
 		print
 		#--------------------------------------------------
 		pf = np.concatenate(pf)  # (nv*nf, 2)
 		pf = pf.reshape(shape[:2]+(pf.shape[-1],)).T  # (2,nf,nv)
-		self.Phaseaddp, self.Lewp = pf
+		self.Phaseaddp = pf[0]
 		self.Phaseaddp %= (2*np.pi)
+		if (self.fitLew) : self.Lewp = pf[1]
 		#--------------------------------------------------
-		np.save(self.outdir+'Lewp.npy', self.Lewp)
-		np.save(self.outdir+'Phaseaddp.npy', self.Phaseaddp)
-		if (self.verbose) : print 'CaliPhase.FitPhase:  end  @', jp.Time(1)+'\n'
+		if (self.fitLew) : np.save(self.outdir+'Lewp_'+str(self.nsigma)+'_m'+str(self.fitLew)+'.npy', self.Lewp)
+		np.save(self.outdir+'Phaseaddp_'+str(self.nsigma)+'.npy', self.Phaseaddp)
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'CaliPhase.FitPhase:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
@@ -454,9 +517,9 @@ class CaliPhase( object ) :
 		self.Phaseaddv %= (2*np.pi)
 		self.Ampv = abs(self.Ampv)
 		#--------------------------------------------------
-		np.save(self.outdir+'Ampv.npy'     , self.Ampv     )
-		np.save(self.outdir+'Sigmav.npy'   , self.Sigmav   )
-		np.save(self.outdir+'Phaseaddv.npy', self.Phaseaddv)
+		np.save(self.outdir+'Ampv_'+str(self.nsigma)+'.npy', self.Ampv)
+		np.save(self.outdir+'Sigmav_'+str(self.nsigma)+'.npy', self.Sigmav)
+		np.save(self.outdir+'Phaseaddv_'+str(self.nsigma)+'.npy', self.Phaseaddv)
 		#--------------------------------------------------
 		# Plot
 		if (plotnv is None) : 
@@ -503,7 +566,7 @@ class CaliPhase( object ) :
 		plt.ylim(-vmax, vmax)
 		plt.title('Imaginary part', size=16)
 		plt.suptitle('Fitted fringe of baseline='+strbl+' @ '+freqstr+'MHz by FitVis()', fontsize=20)
-		plt.savefig(self.outdir+'vis_FitVis_'+strbl+'_'+freqstr+'MHz.png')
+		plt.savefig(self.outdir+'vis_FitVis_'+strbl+'_'+freqstr+'MHz_'+str(self.nsigma)+'.png')
 		plt.close()
 		return [self.Ampv, self.Sigmav, self.Phaseaddv]
 
@@ -533,7 +596,7 @@ class CaliPhase( object ) :
 		self.Phaseadde = pf %(2*np.pi)
 		del pool, bcast, vis
 		#--------------------------------------------------
-		np.save(self.outdir+'Phaseadde.npy', self.Phaseadde)
+		np.save(self.outdir+'Phaseadde_'+str(self.nsigma)+'.npy', self.Phaseadde)
 		#--------------------------------------------------
 		# Plot
 		if (plotnv is None) : 
@@ -581,17 +644,19 @@ class CaliPhase( object ) :
 		plt.ylim(-vmax, vmax)
 		plt.title('Imaginary part', size=16)
 		plt.suptitle('Fitted fringe of baseline='+strbl+' @ '+freqstr+'MHz by FitExp()', fontsize=20)
-		plt.savefig(self.outdir+'vis_FitExp_'+strbl+'_'+freqstr+'MHz.png')
+		plt.savefig(self.outdir+'vis_FitExp_'+strbl+'_'+freqstr+'MHz_'+str(self.nsigma)+'.png')
 		plt.close()
 
 
 
 	def Plot( self, dyDeff=None, dyLew=None, Nprocess=None ) : 
-		if (self.verbose) : print 'CaliPhase.Plot: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'CaliPhase.Plot: start @', starttime
 		outdir = jp.Mkdir(self.outdir + 'Plot/')
 		#--------------------------------------------------
 		nbl = np.arange(len(self.antarray.visorder))
-		bl =self.antarray.Blorder.blorder[self.antarray.visorder]
+		bl = self.antarray.Blorder.blorder[self.antarray.visorder]
 		strbl = []
 		for i in xrange(len(nbl)) : 
 			strbl.append(str(bl[i,0])+'-'+str(bl[i,1]))
@@ -600,7 +665,12 @@ class CaliPhase( object ) :
 		self._PlotDeff(outdir, strbl, Nprocess, dyDeff)
 		self._PlotLew( outdir, strbl, Nprocess, dyLew)
 		self._PlotPhaseadd(outdir, strbl, Nprocess)
-		if (self.verbose) : print 'CaliPhase.Plot:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'CaliPhase.Plot:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
@@ -616,9 +686,13 @@ class CaliPhase( object ) :
 			return
 		if (self.verbose) : print '    Plotting    Amp     ......'
 		send = tuple(amp) + (strbl,)
-		bcast = (freq, func, color, outdir, 'amp')
-		pool = jp.PoolFor(0, len(strbl), Nprocess)
-		pool.map_async(_DoMultiprocess_Plot, send, bcast)
+		bcast = (freq, func, color, outdir, 'amp', self.nsigma)
+		if (Nprocess <= 1) : 
+			iterable = [(0,len(strbl)), send, bcast]
+			_DoMultiprocess_Plot( iterable )
+		else : 
+			pool = jp.PoolFor(0, len(strbl), Nprocess)
+			pool.map_async(_DoMultiprocess_Plot, send, bcast)
 
 
 
@@ -634,9 +708,13 @@ class CaliPhase( object ) :
 			return
 		if (self.verbose) : print '    Plotting    Deff    ......'
 		send = tuple(Deff) + (strbl,)
-		bcast = (freq, func, color, outdir, 'deff', dyDeff, self.fwhm2sigmafactor, self.antarray.Ant.dishdiam)
-		pool = jp.PoolFor(0, len(strbl), Nprocess)
-		pool.map_async(_DoMultiprocess_Plot, send, bcast)
+		bcast = (freq, func, color, outdir, 'deff', self.nsigma, dyDeff, self.fwhm2sigmafactor, self.antarray.Ant.dishdiam)
+		if (Nprocess <= 1) : 
+			iterable = [(0,len(strbl)), send, bcast]
+			_DoMultiprocess_Plot( iterable )
+		else : 
+			pool = jp.PoolFor(0, len(strbl), Nprocess)
+			pool.map_async(_DoMultiprocess_Plot, send, bcast)
 
 
 
@@ -653,9 +731,13 @@ class CaliPhase( object ) :
 		if (self.verbose) : print '    Plotting    Lew     ......'
 		bl =self.antarray.Blorder.baseline[self.antarray.visorder]
 		send = tuple(Lew) + (strbl,)
-		bcast = (freq, func, color, outdir, 'lew', bl, dyLew)
-		pool = jp.PoolFor(0, len(strbl), Nprocess)
-		pool.map_async(_DoMultiprocess_Plot, send, bcast)
+		bcast = (freq, func, color, outdir, 'lew', self.nsigma, self.fitLew, bl, dyLew)
+		if (Nprocess <= 1) : 
+			iterable = [(0,len(strbl)), send, bcast]
+			_DoMultiprocess_Plot( iterable )
+		else : 
+			pool = jp.PoolFor(0, len(strbl), Nprocess)
+			pool.map_async(_DoMultiprocess_Plot, send, bcast)
 
 
 
@@ -675,9 +757,13 @@ class CaliPhase( object ) :
 		if (self.verbose) : print '    Plotting  Phaseadd  ......'
 		bl =self.antarray.Blorder.baseline[self.antarray.visorder]
 		send = tuple(phaseadd) + (strbl,)
-		bcast = (freq, func, color, outdir, 'phaseadd', bl)
-		pool = jp.PoolFor(0, len(strbl), Nprocess)
-		pool.map_async(_DoMultiprocess_Plot, send, bcast)
+		bcast = (freq, func, color, outdir, 'phaseadd', self.nsigma, self.fitLew, bl)
+		if (Nprocess <= 1) : 
+			iterable = [(0,len(strbl)), send, bcast]
+			_DoMultiprocess_Plot( iterable )
+		else : 
+			pool = jp.PoolFor(0, len(strbl), Nprocess)
+			pool.map_async(_DoMultiprocess_Plot, send, bcast)
 
 
 
@@ -752,7 +838,7 @@ class CaliPhase( object ) :
 				plt.ylabel('[A.U.]', size=16)
 				plt.ylim(-vmax, vmax)
 		plt.suptitle('Fringe of baseline='+strbl+strbll+' @ '+freqstr+'MHz', fontsize=20)
-		plt.savefig(self.outdir+'vis_'+strbl+'_'+freqstr+'MHz.png')
+		plt.savefig(self.outdir+'vis_'+strbl+'_'+freqstr+'MHz_'+str(self.nsigma)+'.png')
 		plt.close()
 		#--------------------------------------------------
 		# Plot phase
@@ -765,5 +851,5 @@ class CaliPhase( object ) :
 		plt.ylim(0, 360)
 		plt.ylabel('[degree]', size=16)
 		plt.title('Total phase of baseline='+strbl+strbll+' @ '+freqstr+'MHz', size=13)
-		plt.savefig(self.outdir+'phase_'+strbl+'_'+freqstr+'MHz.png')
+		plt.savefig(self.outdir+'phase_'+strbl+'_'+freqstr+'MHz_'+str(self.nsigma)+'.png')
 		plt.close()

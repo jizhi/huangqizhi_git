@@ -1,44 +1,54 @@
 from npfmt import *
 from IsType import *
+from Interp1d import Interp1d
+
 
 
 class BrightSource( object ) : 
 
+
 	def __init__( self ) : 
-		self.register_sources = [
+		self.regname = [
 		    'Cassiopeia_A','CasA', 
 		    'Cygnus_A',    'CygA',
 		    'Crab_Nebula', 'Crab', 'Taurus_A', 'TauA',
 		    'Virgo_A',     'VirA']
-	
-		self.CasA=np.array([(23+23/60.+26/3600.)*15, 58+48/60.])
-		self.CygA = np.array([(19+59/60.+28.4/3600)*15, +40+44/60.+2/3600.])
-		self.Crab = self.TauA = np.array([(5+34/60.+31.9/3600)*15, +22+0+52.2/3600])
-		self.VirA = np.array([(12+30/60.+49.4/3600)*15, +12+23/60+28/3600.])
-	#	self.CygX = np.array([(20+31/60.)*15, +40+20/60.])
+		# in degree
+		self._CasA=np.array([(23+23/60.+26/3600.)*15, 58+48/60.])
+		self._CygA = np.array([(19+59/60.+28.4/3600)*15, +40+44/60.+2/3600.])
+		self._Crab = self._TauA = np.array([(5+34/60.+31.9/3600)*15, +22+0+52.2/3600])
+		self._VirA = np.array([(12+30/60.+49.4/3600)*15, +12+23/60+28/3600.])
+	#	self._CygX = np.array([(20+31/60.)*15, +40+20/60.])
 
 
-	def _CheckSourcename( self, sourcename ) : 
-		if (sourcename not in self.register_sources) : Raise(Exception, "sourcename="+str(source)+" not in self.register_sources="+str(self.register_sources))
+	def Sourcename( self, sourcename ) : 
+		''' Check the source and return the short name '''
+		if (sourcename not in self.regname) : Raise(Exception, "sourcename="+str(source)+" not in self.regname="+str(self.regname))
+		if   (sourcename.lower() in ['cassiopeia_a', 'casa']) : 
+			sourcename = 'CasA'
+		elif (sourcename.lower() in ['cygnus_a', 'cyga']) : 
+			sourcename = 'CygA'
+		elif (sourcename.lower() in ['crab_nebula', 'crab', 'taurus_a', 'taua']) : 
+			sourcename = 'Crab'
+		elif (sourcename.lower() in ['virgo_a', 'vira']) : 
+			sourcename = 'VirA'
+		return sourcename
 
 
 	def RADec( self, sourcename ) : 
-		self._CheckSourcename(sourcename)
-		sn = sourcename
-		if   (sn in ['Cassiopeia_A','CasA']) : return self.CasA
-		elif (sn in ['Cygnus_A','CygA']) : return self.CygA
-		elif (sn in ['Crab_Nebula','Crab','Taurus_A','TauA']) : return self.Crab
-		elif (sn in ['Virgo_A','VirA']) : return self.VirA
+		''' Return the RADec of the source '''
+		sourcename = self.Sourcename(sourcename)
+		return self.__dict__['_'+sourcename]
 
 
 	def Convert( self, angle, what ) : 
 		'''
-		what: 'h2d' => hour to degree
-		      'h2s' => hour to hms_str
-		      'd2h' => degree to hour
-            'd2s' => degree to hms_str
-		      's2h' => hms_str to hour
-            's2d' => hms_str to degree
+		what: 'h2d' => hour     to  degree
+		      'h2s' => hour     to  hms_str
+		      'd2h' => degree   to  hour
+            'd2s' => degree   to  hms_str
+		      's2h' => hms_str  to  hour
+            's2d' => hms_str  to  degree
 		'''
 		def h2s( ang ) : 
 			h = int(ang[i])
@@ -72,20 +82,20 @@ class BrightSource( object ) :
 
 	def FluxDensity( self, sourcename, frequency ) : 
 		'''
-		sourcename: one str
+		sourcename: str, one sourcename
 	
-		frequency: MHz, scale or ndarray
+		frequency: in MHz, scale or list or ndarray
 	
 		Return:
-			Flux density of this source at setting freq.
-			Shape of return bases on shape of sourcename and freq.
-			But each row of return is one source with several freq.
+			Flux density of this source at frequency
+			return.shape == frequency.shape
 
 		Data from:
 			The flux density values of standard sources used for antenna calibrations
 				J.W.M. Baars, P.G. Mezger and H. Wendker
 				1964
 		'''
+		# freq = 300MHz ~ 85GHz
 		freq = np.array([300.,400,408,500,600,700,750,800,900,
 1000,1100,1200,1300,1400,1410,1420,1500,1600,1700,1800,1900,
 2000,2500,2695,3000,3500,4000,4500,4995,5000,5500,6000,6500,
@@ -127,16 +137,11 @@ class BrightSource( object ) :
 25,25,25,24,23,22,22,21,20,19,19,18,18,17,17,17,16,16,16,15,
 15,15,14,14,14,7])
 	
-		self._CheckSourcename(sourcename)
-		sn = sourcename
-		if   (sn in ['Cassiopeia_A','CasA']) : 
-			flux = flux_Cassiopeia_A
-		elif (sn in ['Cygnus_A','CygA']) : 
-			flux = flux_Cygnus_A
-		elif (sn in ['Crab_Nebula','Crab','Taurus_A','TauA']) : 
-			flux = flux_Crab_Nebula
-		elif (sn in ['Virgo_A','VirA']) : 
-			flux = flux_Virgo_A
+		sn = self.Sourcename(sourcename)
+		if   (sn == 'CasA') : flux = flux_Cassiopeia_A
+		elif (sn == 'CygA') : flux = flux_Cygnus_A
+		elif (sn == 'Crab') : flux = flux_Crab_Nebula
+		elif (sn == 'VirA') : flux = flux_Virgo_A
 		istype = IsType()
 		if (istype.isint(frequency) or istype.isfloat(frequency)) : islist = False
 		else : islist = True

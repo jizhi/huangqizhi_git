@@ -43,7 +43,6 @@ antarray.SelectChannel([1, 3, 7])
 #antarray.SelectChannel([3])
 
 
-
 ##################################################
 
 
@@ -101,47 +100,51 @@ caligain = CaliGain(antarray, masking)
 ##################################################
 
 
+nsigma = 4
 fwhm2sigmafactor = 2.287
-caliphase = CaliPhase(antarray, masking, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200)
+caliphase = CaliPhase(antarray, masking, nsigma=nsigma, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200)
 RA, Dec = brightsource.RADec(sourcename)
 print sourcename, '  RA =', RA, '  Dec =', Dec
 caliphase.RADec(RA, Dec)
 
 
-#caliphase.Fringe(nsigma=2)
-#caliphase.Smooth(200)
-#
-#vis = caliphase.vis
-#np.save('vis.data', vis.data)
-#np.save('vis.mask', vis.mask)
-#np.save('timem', caliphase.timem)
-#jp.Raise()
-
-vis = np.load('vis.data.npy')
-mask = np.load('vis.mask.npy')
-timem = np.load('timem.npy')
-vis = np.ma.MaskedArray(vis, mask)
-caliphase.vis = vis
-caliphase.timem = timem
-
-
-#caliphase.FitBeam()
-caliphase.Ampb = np.load('mapmaking_main_output/CaliPhase_output/Ampb.npy')
-caliphase.Timeb = np.load('mapmaking_main_output/CaliPhase_output/Timeb.npy')
-caliphase.Sigmab = np.load('mapmaking_main_output/CaliPhase_output/Sigmab.npy')
-caliphase.Phasens = np.load('mapmaking_main_output/CaliPhase_output/Phasens.npy')
-
-
-#caliphase.Nprocess = 2
-caliphase.FitPhase()
-#jp.Raise()
-
-
-#caliphase.FitVis()
-
-
-caliphase.Plot(dyDeff=0.1, dyLew=0.05, Nprocess=1)
-jp.Raise()
+#for nsigma in [2, 3, 4, 5] : 
+for nsigma in [4] : 
+	caliphase.nsigma = nsigma
+	caliphase.Fringe()
+	caliphase.Smooth(200)
+	
+	#vis = caliphase.vis
+	#np.save('vis.data', vis.data)
+	#np.save('vis.mask', vis.mask)
+	#np.save('timem', caliphase.timem)
+	#jp.Raise()
+	
+	#vis = np.load('vis.data.npy')
+	#mask = np.load('vis.mask.npy')
+	#timem = np.load('timem.npy')
+	#vis = np.ma.MaskedArray(vis, mask)
+	#caliphase.vis = vis
+	#caliphase.timem = timem
+	
+	
+	caliphase.FitBeam()
+	#caliphase.Ampb = np.load('mapmaking_main_output/CaliPhase_output/Ampb.npy')
+	#caliphase.Timeb = np.load('mapmaking_main_output/CaliPhase_output/Timeb.npy')
+	#caliphase.Sigmab = np.load('mapmaking_main_output/CaliPhase_output/Sigmab.npy')
+	#caliphase.Phasens = np.load('mapmaking_main_output/CaliPhase_output/Phasens.npy')
+	
+	
+	#caliphase.Nprocess = 2
+	caliphase.FitPhase()
+	#jp.Raise()
+	#caliphase.Lewp = np.load('mapmaking_main_output/CaliPhase_output/Lewp.npy')
+	#caliphase.Phaseaddp = np.load('mapmaking_main_output/CaliPhase_output/Phaseaddp_4.npy')
+	
+	
+	#caliphase.FitVis()
+	
+	caliphase.Plot(dyDeff=0.5, dyLew=0.5, Nprocess=1)
 
 
 ##################################################
@@ -149,7 +152,8 @@ jp.Raise()
 
 # nsource = 9
 #calitemp = CaliTemperature(antarray, 750, (1,25))
-calitemp = CaliTemperature(antarray, 750, (8,12))
+#calitemp = CaliTemperature(antarray, 750, (8,12))
+calitemp = CaliTemperature(antarray, antarray.Ant.freq.mean(), None)
 calitemp.Vis()
 
 pixstart, pixlength, pixperiod = masking.noisesource.pixstart, masking.noisesource.pixlength, masking.noisesource.pixperiod
@@ -166,13 +170,13 @@ calitemp.vis.mask += calitemp.masking.masknoisesource
 
 flux = brightsource.FluxDensity(sourcename, calitemp.freq)
 
-calitemp.Smooth(200)
+calitemp.Smooth(201)
 calitemp.CaliTemp(flux)
 Raise()
 
 calitemp.Smooth()
 #calitemp.Plot()
-calitemp.Smooth(200)
+calitemp.Smooth(201)
 
 ##################################################
 
