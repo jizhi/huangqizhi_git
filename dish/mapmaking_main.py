@@ -35,12 +35,12 @@ antarray = AntArray(hdf5dir)
 
 antarray.WhichHdf5('transitsource')
 
-antarray.SelectVisType('cross1')
+#antarray.SelectVisType('cross1')
 #antarray.SelectChannel([3, 7])
-antarray.SelectChannel([1, 3, 7])
+#antarray.SelectChannel([1, 3, 7])
 
-#antarray.SelectVisType('auto1')
-#antarray.SelectChannel([3])
+antarray.SelectVisType('auto1')
+antarray.SelectChannel([3])
 
 
 ##################################################
@@ -87,14 +87,19 @@ nsigma, nloop, threshold = 4, 2, 0.001
 
 caligain = CaliGain(antarray, masking)
 
-#caligain.Window(4*60)
-#
-#caligain.Gainnu()  # OK, very good
-#
+caligain.Window(60*4)
+
+caligain.Gainnu()  # OK, very good
+jp.Raise()
+
 ###caligain.See(3, 100, nfreq)
-#
-#masktime = (5000,11000)
-#caligain.Gaint(masktime=masktime, legendsize=7, legendloc=8)
+
+masktime = (5000,11000)
+gainttimes = 100
+
+caligain.Gaint(masktime=masktime, gainttimes=gainttimes, legendsize=4, legendloc=8)
+
+jp.Raise()
 
 
 ##################################################

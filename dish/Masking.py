@@ -60,6 +60,11 @@ class Masking( object ) :
 
 
 	def __init__( self, antarray=None, Nprocess=None, verbose=True ) : 
+		''' All input parameters will be saved to self.Params '''
+		class _Params( object ) : pass
+		self.Params = _Params()
+		self.Params.init = {'Nprocess':Nprocess, 'verbose':verbose}
+		#--------------------------------------------------
 		self.Nprocess, self.verbose = Nprocess, verbose
 		if (antarray is None) : return
 		self.antarray = antarray  #@ will it increast the memory?
@@ -74,12 +79,11 @@ class Masking( object ) :
 		else : dtype = value.dtype
 		self.maskvalue = np.array([], dtype)
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
-		class _Params( object ) : pass
-		self.Params = _Params()
+		self.starttime = jp.Time(1)
 
 
 
-	def MaskNoiseSource( self, pixstart, pixlength, pixperiod, params=False ) :
+	def MaskNoiseSource( self, pixstart, pixlength, pixperiod ) :
 		'''
 		self.noisesource.pixstart
 		self.noisesource.pixlength
@@ -88,7 +92,9 @@ class Masking( object ) :
 		self.noisesource.mask
 		self.masknoisesource
 		'''
-		if (self.verbose) : print 'Masking.MaskNoisesource: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'Masking.MaskNoisesource: start @', starttime
 		self.noisesource = NoiseSource(pixstart, pixlength, pixperiod)
 		self.noisesource.Mask(self.antarray)
 		self.masknoisesource = self.noisesource.mask[:,None,None] + np.zeros(self.mask.shape, bool)  # 3D
@@ -123,16 +129,17 @@ class Masking( object ) :
 		maskvalue = np.array([maskidx, maskvalue], self.maskvalue.dtype)
 		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
 		#--------------------------------------------------
-		if (params) : 
-			class _Params( object ) : pass
-			Params = _Params()
-			Params.__dict__.update({'pixstart':self.noisesource.pixstart, 'pixlength':self.noisesource.pixlength, 'pixperiod':self.noisesource.pixperiod})
-			self.Params.MaskNoisesourceParams = Params
-		if (self.verbose) : print 'Masking.MaskNoisesource:  end  @', jp.Time(1)+'\n'
+		self.Params.MaskNoiseSource = {'pixstart':self.noisesource.pixstart, 'pixlength':self.noisesource.pixlength, 'pixperiod':self.noisesource.pixperiod}
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'Masking.MaskNoisesource:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
-	def MaskLoop( self, axis, per=60, times=1, nsigma=5, nloop=None, threshold=None, params=False, array=None, arraymaskvalue=None ) : 
+	def MaskLoop( self, axis, per=60, times=1, nsigma=5, nloop=None, threshold=None, array=None, arraymaskvalue=None):
 		'''
 		axis:
 			Along which axis?
@@ -156,14 +163,14 @@ class Masking( object ) :
 		If nloop!=None and threshold!=None, use one that satisfies first
 		If nloop==None and threshold==None, set nloop=10, threshold=0.001
 
-		params:
-			True or False, update parameters of this MaskLoop() to self.Params
-
 		if (array is None) : 
-			self.mask, self.maskloop, self.maskvalue
-		else : return [array_new, arraymaskvalue_new]
+			Use self.mask, self.maskloop, self.maskvalue
+		else : 
+			Use array and arraymaskvalue, and return [array_new, arraymaskvalue_new]
 		'''
-		if (self.verbose) : print 'Masking.MaskLoop: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'Masking.MaskLoop: start @', starttime
 		try : axis = int(round(axis))
 		except : axis = 0
 		per, times = np.array([per, times]).round().astype(int)
@@ -181,14 +188,8 @@ class Masking( object ) :
 		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
 		else : nloop, threshold
 		#--------------------------------------------------
-		if (params) : 
-			class _Params( object ) : pass
-			Params = _Params()
-			Params.__dict__.update({'axis':axis, 'per':per, 'times':times, 'nsigma':nsigma, 'nloop':nloop, 'threshold':threshold})
-			try : 
-				n = len(self.Params.MaskLoopParams.__dict__.keys())
-				self.Params.MaskLoopParams.__dict__['p'+str(n+1)] = Params
-			except : self.Params.MaskLoopParams.p1 = Params
+		if (array is None) : 
+			self.Params.MaskLoop = {'axis':axis, 'per':per, 'times':times, 'nsigma':nsigma, 'nloop':nloop, 'threshold':threshold}
 		#--------------------------------------------------
 		if (self.verbose) : print ('    axis=%i, per=%i, times=%i, nsigma=%.1f, nloop=%i, threshold=%.3f' % (axis, per, times, nsigma, nloop, threshold))
 		vistype = self.antarray.vistype[:-1]
@@ -252,7 +253,7 @@ class Masking( object ) :
 				before  = ('%11i') % maskback.sum()
 				after   = ('%11i') % vis.mask.sum()
 				diff    = ('%11i') % (vis.mask.sum()-maskback.sum())
-				print strdone + before + after + diff +'    ', jp.Time(1)[11:]
+				if (self.verbose) : print strdone + before + after + diff +'    ', jp.Time(1)[11:]
 			if (vis.mask.sum()-maskback.sum() <= vis.size*threshold) : break
 		#--------------------------------------------------
 		maskidx = np.concatenate(maskidx)
@@ -264,13 +265,20 @@ class Masking( object ) :
 			try    : self.maskloop = self.mask - self.masknoisesource
 			except : self.maskloop = self.mask
 		else : return [vis, maskvalue]
-		if (self.verbose) : print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'Masking.MaskLoop:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
 	def MaskManual( self, maskmanual ) : 
 		if (maskmanual.shape != self.mask.shape) : jp.Raise(Exception, 'maskmanual.shape != self.mask.shape')
-		if (self.verbose) : print 'Masking.MaskManual: start @', jp.Time(1)
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'Masking.MaskManual: start @', starttime
 		maskback = self.mask.copy()
 		self.mask += maskmanual
 		self.maskmanual = self.mask - maskback
@@ -290,7 +298,12 @@ class Masking( object ) :
 		#--------------------------------------------------
 		maskvalue = np.array([np.concatenate(maskidx), np.concatenate(maskvalue)])
 		self.maskvalue = jp.Sort(maskvalue, '[0,:]')[1]
-		if (self.verbose) : print 'Masking.MaskManual:  end  @', jp.Time(1)+'\n'
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'Masking.MaskManual:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 

@@ -27,19 +27,36 @@ def SmoothWeight( per, times ) :
 def _Multiprocess_Smooth( iterable ) : 
 	n1, n2 = iterable[0]
 	array = iterable[1].T
-	weight, lw, dnwa, dnwa1, dnwa2 = iterable[2]
+	weight, lw, dnwa, dnwa1, dnwa2, appendsize = iterable[2]
 	shapew = np.ones(len(array.shape), int)
 	shapew[0] = lw
 	weight = weight.reshape(shapew)
 	b = array*0.
+	#--------------------------------------------------
+	def func(x, p) : return p[0]*x + p[1]
+	dal = array[:int(len(array)*appendsize)]
+	dar = array[-len(dal):]
+	pl, pr = [], []
+	for j in xrange(array.shape[1]) : 
+		pl.append(Leastsq(func, np.arange(len(dal)), dal[:,j], [1,0]))
+		pr.append(Leastsq(func, np.arange(len(array)-len(dal), len(array)), dar[:,j], [1,0]))
+	dal = np.zeros((lw/2+1,)+array.shape[1:], array.dtype)
+	dar = dal*0
+	for j in xrange(array.shape[1]) : 
+		dal[:,j] = func(np.arange(-len(dal), 0), pl[j])
+		dar[:,j] = func(np.arange(len(array), len(array)+len(dal)), pr[j])
+	#--------------------------------------------------
 	for i in xrange(len(array)) : 
 		if (i < lw/2) : 
 			dn = lw/2-i
-			da = np.concatenate([array[:1] for j in xrange(dn)])
+		#	da = np.concatenate([array[:1] for j in xrange(dn)])
+			print '2'
+			da = dal[-dn:]
 			ai = np.concatenate([da, array[:lw/2+1+i]])
 		elif (i >= len(array)-lw/2) : 
 			dn = lw/2 - (len(array)-1 - i)
-			da = np.concatenate([array[-1:] for j in xrange(dn)])
+		#	da = np.concatenate([array[-1:] for j in xrange(dn)])
+			da = dar[:dn]
 			ai = np.concatenate([array[i-lw/2:], da])
 		else : ai = array[i-lw/2:i+lw/2+1]
 		b[i] = (ai * weight).sum(0)
@@ -48,7 +65,7 @@ def _Multiprocess_Smooth( iterable ) :
 
 
 
-def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=1 ) : 
+def Smooth( array, axis, per, times=1, appendsize=0.1, sigma=False, reduceshape=False, Nprocess=1 ) : 
 	'''
 	Smooth/Average/Mean array along one axis.
 	We can also use spsn.convolve() to do this, but spsn.convolve() will cost much more memory and time, so, the function written here is the best and fastest.
@@ -98,7 +115,6 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 	if (axis >= len(shape)) : Raise(Exception, 'axis='+str(axis)+', array.shape='+str(shape)+', axis out of array.shape')
 	# Move axis to axis=0
 	array = ArrayAxis(array, axis, 0, 'move')
-	array0 = array.copy()
 	shape0, shape = array.shape, array.shape
 	# ND to 2D
 	if (len(shape0) == 1) : array = array[:,None]
@@ -125,11 +141,11 @@ def Smooth( array, axis, per, times=1, sigma=False, reduceshape=False, Nprocess=
 			a1 = a2 = 0 #@
 		#--------------------------------------------------
 		if (Nprocess == 1) : 
-			iterable = ((0,0), array.T, [weight, lw, dnwa, dnwa1, dnwa2])
+			iterable = ((0,0), array.T, [weight, lw, dnwa, dnwa1, dnwa2, abs(appendsize)])
 			b = _Multiprocess_Smooth(iterable)
 		else : 
 			pool = PoolFor(0, shape1[1], Nprocess)
-			b = pool.map_async(_Multiprocess_Smooth, array.T, [weight, lw, dnwa, dnwa1, dnwa2])
+			b = pool.map_async(_Multiprocess_Smooth, array.T, [weight, lw, dnwa, dnwa1, dnwa2, abs(appendsize)])
 			b = np.concatenate(b, 1)
 		if (len(shape0) != 2) : b = b.reshape(shape0)
 	#--------------------------------------------------

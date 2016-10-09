@@ -5,8 +5,9 @@ import jizhipy as jp
 ##################################################
 
 
-class _AntArrayBlorder( object ) : 
 
+class _AntArrayBlorder( object ) : 
+	''' self.Blorder '''
 
 	def _Blorder( self, blorder ) : 
 		self.blorder = blorder[:]
@@ -65,13 +66,15 @@ class _AntArrayBlorder( object ) :
 		return self.blorder[int(round(order))]
 
 
+
 ##################################################
 ##################################################
 ##################################################
+
 
 
 class _AntArrayHdf5( object ) : 
-
+	''' self.Hdf5 '''
 
 	def _Hdf5List( self, hdf5dir ) : 
 		if (hdf5dir == '') : hdf5dir = './'
@@ -103,31 +106,37 @@ class _AntArrayHdf5( object ) :
 ##################################################
 
 
-class _AntArrayAnt( object ) : pass
+
+class _AntArrayAnt( object ) : 
+	''' self.Ant '''
+	pass
 
 
+
 ##################################################
 ##################################################
 ##################################################
+
 
 
 class AntArray( object ) : 
 	''' This class just reads and handles the information in the HDF5 file, won't change anything ! 
 	
 	self.MaskChannel(), self.SelectChannel():
-		Modify self.Blorder.maskorder, maskchannel, selectorder, selectchannel, auto, cross1, cross2
+		Modify self.Blorder.maskorder, maskchannel, selectorder, selectchannel, auto1, auto2, cross1, cross2, cross3
 
 	self.SelectVisType():
 		Modifies self.visorder
 
-	self.Blorder.blorder, baseline, channelpos won't change anytime
+	self.Blorder.blorder, baseline, channelpos won't change at any time !!!
 
-	maskorder, selectorder, auto, cross1, cross2, visorder:
+	maskorder, selectorder, auto1, auto2, cross1, cross2, cross3, visorder:
 		Are used to self.vis[:,:,visorder], blorder[cross1], baseline[maskorder]
 
 	maskchannel, selectchannel:
 		Are used to channelpos[selectchannel]
 	'''
+
 
 	def __init__( self, hdf5dir=None, verbose=True ) : 
 		'''
@@ -145,7 +154,7 @@ class AntArray( object ) :
 			= [noisesourcepos, inttime, lonlat, freq, dishdiam]
 
 		hdf5dir:
-			In this directory/folder, all .hdf5 are one continuum observation split into several files. If one file one observation, this hdf5dir must just contain one file.
+			In this directory/folder, all .hdf5 are one continuum observation splited into several files. If one file one observation, this hdf5dir must just contain one file.
 		'''
 		self.verbose = verbose
 		if (hdf5dir is None) : return
@@ -158,6 +167,7 @@ class AntArray( object ) :
 		self._Blorder(fo)
 		self.MaskChannel()
 		self.SelectVisType('all')
+
 
 
 	def WhichHdf5( self, whichhdf5 ) : 
@@ -176,6 +186,7 @@ class AntArray( object ) :
 		if (istype.isstr(whichhdf5)) : 
 			if (whichhdf5.lower() == 'transitsource') : 
 				self._WhichHdf5(self.Hdf5.nhdf5transit[-1])
+
 
 
 	def _WhichHdf5( self, whichhdf5 ) : 
@@ -207,6 +218,7 @@ class AntArray( object ) :
 		self.Blorder._AutoCross()
 		self.Blorder._Feedpos(fo['feedpos'])
 		self.Blorder._Baseline()
+
 
 
 	def MaskChannel( self, maskchannel=None ) : 
@@ -248,6 +260,7 @@ class AntArray( object ) :
 		#--------------------------------------------------
 
 
+
 	def SelectChannel( self, selectchannel=None ) : 
 		''' selectchannel: Start from 1 (not 0) '''
 		if (selectchannel is None) : selectchannel = []
@@ -256,6 +269,7 @@ class AntArray( object ) :
 		_maskchannel[selectchannel] = False
 		maskchannel = np.arange(len(self.Blorder.feedpos)*2)[_maskchannel]+1
 		self.MaskChannel(maskchannel)
+
 
 
 	def _MaskChannel( self ) : 
@@ -268,6 +282,7 @@ class AntArray( object ) :
 		self.Blorder.cross1 = norder[self.Blorder.selectorder][self.Blorder.cross1]
 		self.Blorder.cross2 = norder[self.Blorder.selectorder][self.Blorder.cross2]
 		self.Blorder.cross3 = norder[self.Blorder.selectorder][self.Blorder.cross3]
+
 
 
 	def SelectVisType( self, vistype='cross1' ) : 
