@@ -35,12 +35,12 @@ antarray = AntArray(hdf5dir)
 
 antarray.WhichHdf5('transitsource')
 
-#antarray.SelectVisType('cross1')
+antarray.SelectVisType('cross1')
 #antarray.SelectChannel([3, 7])
 #antarray.SelectChannel([1, 3, 7])
 
-antarray.SelectVisType('auto1')
-antarray.SelectChannel([3])
+#antarray.SelectVisType('auto1')
+#antarray.SelectChannel([3])
 
 
 ##################################################
@@ -51,7 +51,7 @@ masking = Masking(antarray)
 
 freq = 1400
 nfreq = abs(antarray.Ant.freq-freq)
-nfreq = np.where(nfreq==nfreq.min())[0][0]
+nfreq = np.where(nfreq==nfreq.min())[0][0]  # 307
 ntimemax = 69104
 
 
@@ -89,17 +89,15 @@ caligain = CaliGain(antarray, masking)
 
 caligain.Window(60*4)
 
-caligain.Gainnu()  # OK, very good
-jp.Raise()
+#caligain.Gainnu()  # OK, very good
+#jp.Raise()
 
 ###caligain.See(3, 100, nfreq)
 
 masktime = (5000,11000)
 gainttimes = 100
 
-caligain.Gaint(masktime=masktime, gainttimes=gainttimes, legendsize=4, legendloc=8)
-
-jp.Raise()
+#caligain.Gaint(masktime=masktime, gainttimes=gainttimes, legendsize=4, legendloc=8)
 
 
 ##################################################
@@ -107,7 +105,10 @@ jp.Raise()
 
 nsigma = 4
 fwhm2sigmafactor = 2.287
-caliphase = CaliPhase(antarray, masking, nsigma=nsigma, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200)
+
+#caliphase = CaliPhase(antarray, masking, caligain, nsigma=nsigma, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200)
+caliphase = CaliPhase(antarray, None, None, nsigma=nsigma, fwhm2sigmafactor=fwhm2sigmafactor, Nprocess=200, plotfreq=1400)
+
 RA, Dec = brightsource.RADec(sourcename)
 print sourcename, '  RA =', RA, '  Dec =', Dec
 caliphase.RADec(RA, Dec)
@@ -118,6 +119,7 @@ for nsigma in [4] :
 	caliphase.nsigma = nsigma
 	caliphase.Fringe()
 	caliphase.Smooth(200)
+
 	
 	#vis = caliphase.vis
 	#np.save('vis.data', vis.data)

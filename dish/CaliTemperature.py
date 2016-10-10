@@ -5,11 +5,9 @@ from Masking import *
 ##################################################
 
 
+
 class CaliTemperature( object ) : 
 
-
-	def __init__( self, caligain=None, caliphase=None ) : 
-		
 
 
 	def __init__( self, freq, antarraylist=None, maskinglist=None, caligainlist=None, caliphaselist=None ) :

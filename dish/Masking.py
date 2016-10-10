@@ -59,7 +59,7 @@ class NoiseSource( object ) :
 class Masking( object ) : 
 
 
-	def __init__( self, antarray=None, Nprocess=None, verbose=True ) : 
+	def __init__( self, antarray=None, Nprocess=None, verbose=True, outdir=None ) : 
 		''' All input parameters will be saved to self.Params '''
 		class _Params( object ) : pass
 		self.Params = _Params()
@@ -79,6 +79,7 @@ class Masking( object ) :
 		else : dtype = value.dtype
 		self.maskvalue = np.array([], dtype)
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
+		if (outdir is not None) : self.outdir = jp.Mkdir(self.outdir+outdir)
 		self.starttime = jp.Time(1)
 
 

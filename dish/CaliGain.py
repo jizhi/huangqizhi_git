@@ -10,7 +10,7 @@ import scipy.signal as spsn
 class CaliGain( object ) : 
 
 
-	def __init__( self, antarray=None, masking=None, Nprocess=None, verbose=True ) : 
+	def __init__( self, antarray=None, masking=None, Nprocess=None, verbose=True, outdir=None ) : 
 		class _Params( object ) : pass
 		self.Params = _Params()
 		self.Params.init = {'Nprocess':Nprocess, 'verbose':verbose}
@@ -18,6 +18,7 @@ class CaliGain( object ) :
 		if (antarray is not None) : self.antarray = antarray
 		if (masking  is not None) : self.masking  = masking
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
+		if (outdir is not None) : self.outdir = jp.Mkdir(self.outdir+outdir)
 		self.starttime = jp.Time(1)
 
 
@@ -32,8 +33,6 @@ class CaliGain( object ) :
 	def Gainnu( self, Nline=20, gainnuper=3, gainnutimes=10, legendsize=9, legendloc=1 ) : 
 		''' Calculate g(nu) and plot '''
 		self.Params.Gainnu = {'Nline':Nline, 'legendsize':legendsize, 'legendloc':legendloc}
-		outdir = self.outdir + 'Gainnu/'
-		if (not os.path.exists(outdir)) : os.makedirs(outdir)
 		if (self.verbose) : 
 			starttime = jp.Time(1)
 			print 'CaliGain.Gainnu: start @', starttime
@@ -67,9 +66,9 @@ class CaliGain( object ) :
 		# Normalize
 		gainnu = self.gainnu / self.gainnu.mean(1)[:,None,:]
 		self.gainnumean, Nlinelist = self._Gainmean(gainnu, 1, Nline, None, gainnuper, gainnutimes, False)
-		np.save(outdir+'gainnu.npy', self.gainnu)
-		np.save(outdir+'Nlinelist.npy', Nlinelist)
-		np.save(outdir+'gainnumean.npy', self.gainnumean)
+		np.save(self.outdir+'gainnu.npy', self.gainnu)
+		np.save(self.outdir+'Nlinelist_nu.npy', Nlinelist)
+		np.save(self.outdir+'gainnumean.npy', self.gainnumean)
 		#--------------------------------------------------
 		# Plot
 		titlehead = r'$g(\nu)$'
@@ -77,9 +76,9 @@ class CaliGain( object ) :
 		x = self.antarray.Ant.freq
 		xlabel = r'$\nu$ [MHz]'
 		xaxes = plt_axes('x', 'both', [25,5])
-		self._Plot(gainnu[Nlinelist], self.gainnumean, 1, titlehead, fighead, outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
+		self._Plot(gainnu[Nlinelist], self.gainnumean, 1, titlehead, fighead, self.outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
 		if (self.verbose) : 
-			print '    gainnu.npy, gainnumean.npy, Nlinelist.npy  saved to  '+outdir
+			print '    gainnu.npy, gainnumean.npy, Nlinelist.npy  saved'
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
 			tottime = jp.Time(self.starttime, endtime)
@@ -88,7 +87,7 @@ class CaliGain( object ) :
 
 
 
-	def Gaint( self, timeper=3, timetimes=100, gaintper=3, gainttimes=100, Nline=20, legendsize=10, legendloc=1, masktime=None ) : 
+	def Gaint( self, timeper=3, timetimes=100, gaintper=3, gainttimes=100, Nline=20, legendsize=10, legendloc=1, masktime=None ) :
 		'''
 		timeper, timetimes:
 			vis - Smooth(vis, 0, timeper, timetimes)
@@ -116,8 +115,6 @@ class CaliGain( object ) :
 			progressbar = jp.ProgressBar('    completed:', len(self.nsplit)-1+self.antarray.visorder.size+5)
 		#--------------------------------------------------
 		self.Params.Gaint = {'timeper':timeper, 'timetimes':timetimes, 'gaintper':gaintper, 'gainttimes':gainttimes, 'Nline':Nline, 'legendsize':legendsize, 'legendloc':legendloc, 'masktime':masktime}
-		outdir = self.outdir + 'Gaint/'
-		if (not os.path.exists(outdir)) : os.makedirs(outdir)
 		#--------------------------------------------------
 		# Read data
 		vistype = self.antarray.vistype[:-1]
@@ -177,21 +174,33 @@ class CaliGain( object ) :
 		# self.gaint, gaintreset
 		# Normalize self.gaint
 		gaint = self.gaint.copy()
+		gm = gaintreset.mean(0)
 		if (vistype == 'auto') : 
 			gaint /= gaint.mean(0)
-			gaintreset /= gaintreset.mean(0)
+			gaintreset /= gm
 		else : 
 			gaint.real /= gaint.real.mean(0)
 			gaint.imag /= gaint.imag.mean(0)
-			gaintreset.real /= gaintreset.real.mean(0)
-			gaintreset.imag /= gaintreset.imag.mean(0)
+			gaintreset.real /= gm.real
+			gaintreset.imag /= gm.imag
 		#--------------------------------------------------
 		Nedge = self.gaint.shape[1]/10
 		notNlinelist = range(0,Nedge)+range(self.gaint.shape[1]-Nedge,self.gaint.shape[1])
 		self.gaintmean, Nlinelist = self._Gainmean(gaintreset, 0, Nline, notNlinelist, gaintper, gainttimes, True)
-		np.save(outdir+'gaint.npy', self.gaint)
-		np.save(outdir+'Nlinelist.npy', Nlinelist)
-		np.save(outdir+'gaintmean.npy', self.gaintmean)
+		#--------------------------------------------------
+		# self.norm = self.gaint.mean(0) / self.gaintmean.mean(0)
+		gmm = self.gaintmean.mean(0)
+		if (vistype == 'auto') : self.norm = (gm / gmm)[None,:]
+		else : 
+			normr = (gm.real / gmm.real)[None,:]
+			normi = (gm.imag / gmm.imag)[None,:]
+			self.norm = normr + 1j*normi
+		gm = gmm = 0 #@
+		#--------------------------------------------------
+		np.save(self.outdir+'gaint.npy', self.gaint)
+		np.save(self.outdir+'Nlinelist_t.npy', Nlinelist)
+		np.save(self.outdir+'gaintmean.npy', self.gaintmean)
+		# self.gaintmean is normalized and self.gaint is NOT !
 		#--------------------------------------------------
 		# Plot
 		titlehead = r'$g(t)$'
@@ -199,9 +208,9 @@ class CaliGain( object ) :
 		x = np.arange(self.gaint.shape[0])
 		xlabel = 'time-axis'
 		xaxes = None
-		self._Plot(gaint[:,Nlinelist], self.gaintmean, 0, titlehead, fighead, outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
+		self._Plot(gaint[:,Nlinelist], self.gaintmean, 0, titlehead, fighead, self.outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
 		if (self.verbose) : 
-			print '    gaint.npy, gaintmean.npy, Nlinelist.npy  saved to  '+outdir
+			print '    gaint.npy, gaintmean.npy, Nlinelist.npy  saved'
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
 			tottime = jp.Time(self.starttime, endtime)
