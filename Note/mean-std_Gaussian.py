@@ -8,11 +8,13 @@ Gaussian noises:
 	b: b.mean()=0, b.std()=bstd  (== or != astd)
 
 Auto-correlation: 
+	chi-squared distribution with k=1
 	A = <a a*>
 		A.mean() =           astd**2
 		A.std()  = sqrt{2} * astd**2 = sqrt{2} * A.mean()
 
 Cross-correlation:
+	
 	C = <a b*>
 		C.mean() = 0
 		C.std()  = astd * bstd = sqrt{Astd * Bstd / 2}

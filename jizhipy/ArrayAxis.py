@@ -24,6 +24,7 @@ def ArrayAxis( array, axis1, axis2, act='move' ) :
 	if (axis1 == axis2) : return array
 	if (axis1>=len(shapeo) or axis2>=len(shapeo)) : Raise(Exception, 'axis1='+str(axis1)+', axis2='+str(axis2)+' out of array.shape='+str(shapeo)+'=>'+str(len(shapeo))+'D')
 	if (len(shapeo) == 2) : return array.T
+	if (len(shapeo)==3 and ((axis1==0 and axis2==2) or (axis1==2 and axis2==0)) and act.lower()=='exchange') : return array.T
 	#--------------------------------------------------
 	def _Move( array, axis1, axis2 ) : 
 		shapeo = array.shape

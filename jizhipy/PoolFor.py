@@ -1,11 +1,11 @@
 from Other import *
+from npfmt import *
 import multiprocessing
 from ShellCmd import *
-import numpy as np
 import signal
 
 
-##################################################
+
 
 
 def NprocessCPU( Nprocess=None, verbose=True, hyper=True ) : 
@@ -26,18 +26,15 @@ def NprocessCPU( Nprocess=None, verbose=True, hyper=True ) :
 		if (hyper) : Nprocess = threads
 		else : Nprocess = cores
 	elif (Nprocess <= 1) : Nprocess = 1
-	if (Nprocess>threads and verbose) : Raise(Warning, cpuinfo+', but now  Nprocess='+str(Nprocess))
+	if (Nprocess > threads and verbose) : Raise(Warning, cpuinfo+', but now  Nprocess='+str(Nprocess))
 	return [Nprocess, cores, threads, cpuinfo]
 
 
-##################################################
-##################################################
-##################################################
+
 
 
 class PoolFor( object ) : 
-	dtype = 'class:'+sys._getframe().f_code.co_name
-	"""
+	'''
 	def _DoMultiprocess( iterable ) : 
 		return a
 	
@@ -45,25 +42,46 @@ class PoolFor( object ) :
 	data = pool.map_async(_DoMultiprocess, send, cast)
 	
 	data = np.concatenate(data, 0)
-	"""
+	'''
 
-	def __init__( self, Nstart, Nend, Nprocess=None, info=False, verbose=False ) :
-		self.zero = False
-		if (Nend-Nstart <= 0) : 
-			Raise(Warning, 'Nend-Nstart='+str(Nend-Nstart)+'<=0, return None')
-			self.zero = True
+
+	def __init__( self, Nstart=None, Nend=None, Nprocess=None, nsplit=None, info=False, verbose=False ) :
+		'''
+		(1) PoolFor( Nstart, Nend, Nprocess )
+				use Nstart, Nend, Nprocess to calculate nsplit
+				split send in self.map_async()
+		(2) PoolFor( nsplit )
+				use this nsplit
+				split send in self.map_async()
+		(3) PoolFor()
+				don't  split send in self.map_async(), send has been splitted when give to self.map_async( splitted_send, bcast )
+				send[0] for process-1
+				send[1] for process-2
+				......
+				send[n] for process-n+1
+		'''
+		self.zero, self.splitsend = False, True
+		if ((Nstart is None or Nend is None) and nsplit is None) : 
+			self.splitsend = False
 			return
-		Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, verbose)
-		if (Nend-Nstart < Nprocess) : Nprocess = 1
+		#--------------------------------------------------
+		if (nsplit is not None) : 
+			Nprocess, cores, threads, cpuinfo = NprocessCPU(len(nsplit), verbose)
+		#--------------------------------------------------
+		else : 
+			if (Nend-Nstart <= 0) : 
+				Raise(Warning, 'Nend-Nstart='+str(Nend-Nstart)+'<=0, return None')
+				self.zero = True
+				return
+			Nprocess, cores, threads, cpuinfo = NprocessCPU(Nprocess, verbose)
+			if (Nend-Nstart < Nprocess) : Nprocess = 1
+			# nsplit
+			nsplit=np.linspace(Nstart,Nend, Nprocess+1).astype(int)
+			nsplit = np.array([nsplit[:-1], nsplit[1:]]).T
+		#--------------------------------------------------
 		if (info) : print 'Open '+str(Nprocess)+' processes. '+cpuinfo
-		self.Nstart, self.Nend, self.Nprocess = Nstart, Nend, Nprocess
-		self.pool = multiprocessing.Pool(Nprocess)
-		# nsplit
-		nsplit = np.linspace(Nstart,Nend, Nprocess+1).astype(int)
-		nsplit = list(np.array([nsplit[:-1], nsplit[1:]]).T)
-		for i in xrange(len(nsplit)) : nsplit[i]=tuple(nsplit[i])
-		self.nsplit = nsplit
-		# self.nsplit = [(n1,n2), (n3,n4), (n5,n6), .....]
+		self.Nprocess, self.nsplit = Nprocess, npfmt(nsplit)
+
 
 
 	def map_async( self, func, send=None, bcast=None ) : 
@@ -80,7 +98,7 @@ class PoolFor( object ) :
 			None or tuple or 2D-ndarray
 			If is tuple, means each element is one array (note that must be 2D, and split along axis=0/row)
 			If not tuple, means the send is an unity: send = npfmt(send)
-			The whole 2D array which will be splited to each processes, such as the V in test_multiprocess_poolfor_class-func.py
+			If is 2D array, will split along axis-0 (row)
 
 		bcast:
 			None or tuple or others/as a unity
@@ -89,23 +107,32 @@ class PoolFor( object ) :
 			Must be tuple: (x, p0, ...)
 		'''
 		if (self.zero) : return
-		if (type(bcast) == tuple) : 
-			if (len(bcast) == 1) : bcast = bcast[0]
-		if (type(send) != tuple) : send = (send,)
-		iterable, nsplit = self.nsplit[:], self.nsplit[:]
-		for i in xrange(len(nsplit)) : 
-			iterable[i] = [iterable[i]]
-			sendtmp = ()
-			for j in xrange(len(send)) : 
-				if (send[j] is None) : sendtmp += (None,)
-				else : sendtmp+=(send[j][nsplit[i][0]:nsplit[i][1]],)
-			if (len(sendtmp) == 1) : sendtmp = sendtmp[0]
-			iterable[i] += [sendtmp, bcast]
+		if (self.splitsend) : 
+			istuple = True
+			if (type(send) != tuple) : 
+				send, istuple = (npfmt(send),), False
+			iterable, nsl = list(self.nsplit), self.nsplit
+			for i in xrange(len(nsl)) : 
+				iterable[i] = [tuple(iterable[i])]
+				sendtmp = ()
+				for j in xrange(len(send)) : 
+					if (send[j] is None) : sendtmp += (None,)
+					else : 
+						sendtmp += (send[j][nsl[i][0]:nsl[i][1]],)
+				if (not istuple) : sendtmp = sendtmp[0]
+				iterable[i] += [sendtmp, bcast]
 		#--------------------------------------------------
-		self.data=self.pool.map_async(func, iterable).get(10**10)
+		else : 
+			self.Nprocess = len(send)
+			iterable = []
+			for i in xrange(len(send)) : 
+				iterable.append( [(None,None), send[i], bcast] )
 		#--------------------------------------------------
-		self.pool.close()
-		self.pool.join()
+		pool = multiprocessing.Pool(self.Nprocess)
+		self.data = pool.map_async(func, iterable).get(10**10)
+		#--------------------------------------------------
+		pool.close()
+		pool.join()
 		return self.data
 
 

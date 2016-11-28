@@ -69,23 +69,27 @@ def plt_axisformat( axis, fmt='sci' ) :
 
 
 
-def plt_period( x0, dx, period, fmt='%i' ) : 
+def plt_period( xlist, period, dmajor, fmt='%i' ) : 
 	'''
-	x0: x_original, x0 from x0[0] to x0[0]+period
-	dx: Interval of major in plt_axes()
-	Effect:
-		plot.xticks() of (x0 % period)
+	xlist:
+		plt.plot(xlist, y)
+
+	period:
+		For o'clock, period=24 hour
+		For phase, period=360 degree
+
+	dmajor:
+		Value of each major
 	'''
-	n = 1.*x0[0]/dx
-	if (abs(n-round(n)) < dx/5000.) : n, x1 = int(round(n)), dx*0.1
-	else : n, x1 = 1+int(n), 0
-	x0tick = np.arange(dx*n, dx*n+period+x1, dx)
-	x1tick = (x0tick % period)
-	if (fmt[-1] == 'i') : x1tick = x1tick.astype(int)
-	else : 
-		x1tick = list(x1tick)
-		for i in range(len(x1tick)) : x1tick[i] = (fmt % x1tick[i])
-	plt.xticks(x0tick, x1tick)
+	n = 1.*xlist[0] / dmajor
+	if (n == int(n)) : n = int(n)
+	else : n = 1 + int(n)
+	x0 = n * dmajor
+	x0 = np.arange(x0, xlist[-1]+dmajor/10., dmajor)
+	x1 = list(x0 % period)
+	for i in xrange(len(x1)) : x1[i] = (fmt % x1[i])
+	plt.xticks(x0, x1)
+	return [x0, x1]
 
 
 
@@ -288,7 +292,7 @@ def plt_color( N, r2b=False, k=1 ) :
 		Make the color darker
 	'''
 	if (N == 8) : 
-		return ['k', (0.42,0,1), 'b', 'c', 'g', 'y', (1,0.5,0), 'r']
+		return ['k', (0.42,0,1), 'b','c','g', 'y', (1,0.5,0), 'r']
 	elif (N == 7) : 
 		return ['k', (0.42,0,1), 'b', 'c', 'g', 'y', 'r']
 	elif (N == 6) : 

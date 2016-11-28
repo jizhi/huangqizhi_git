@@ -1,0 +1,21 @@
+#! /usr/bin/env python
+import os
+import sys
+
+if (len(sys.argv) == 1) : 
+	print 'Missing argument of the name of tex file: ./texmake texname.tex'
+	exit()
+
+texname = sys.argv[1][:-4]
+
+os.system('latex '+texname+'.tex')
+os.system('bibtex '+texname+'.aux')
+os.system('latex '+texname+'.tex')
+os.system('latex '+texname+'.tex')
+
+os.system('dvipdf '+texname+'.dvi')
+
+os.system('rm *.dvi *.aux *.bbl *.blg')
+os.system('rm '+texname+'.log '+texname+'.out')
+
+os.system('open '+texname+'.pdf')

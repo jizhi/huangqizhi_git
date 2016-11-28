@@ -1,46 +1,135 @@
 import time
+from IsType import *
 
 
 
-def Time( time1=None, time2=None ):
+def Time( a, b=None, c=None ) : 
 	'''
-	(1) time1==None and time2==None:
-		return [timeephem, timesee, timeoutname]
-	(2) time1 in [0,1,2] and time2==None
-		return [timeephem, timesee, timeoutname][time1]
-	(3) time1 is timeephem or timesee string, time2==None
+	sec1970:
+		second starts from '1970/01/01 00:00:00'
+		It is an unity time all over the world (all timezones). No matter what timezone is, time.time() are the same !
+	ephemtime:
+		different "labels" of sec1970 at different timezones
+
+	The time here is basing on the timezone, don't take local-law into account (Daylight Saving Time)!
+
+	(1) Return local/system timezone (int)
+	** Time('timezone')
+	timezone >=0:east, <0:west
+
+	(2) Convert ephemtime to sec1970 with timezone
+	** Time(ephemtime, timezone)
+	** Time('2016/10/25 16:39:24.68', 8)
+
+	(3) Convert ephemtime from timezonein to timezoneout
+	** Time(ephemtime, timezonein, timezoneout)
+	** Time('2016/10/25 16:39:24.68', 8, 5)
+
+	(4) Convert sec1970 to ephemtime with timezone
+	** Time(sec1970, timezone)
+	** Time(1477411200.729252, 8)
+
+	(5) Calculate time interval between two ephemtimes
+	** Time(ephemtime1, ephemtime2)
+	** Time('2016/10/25 16:39:24.68', '2016/11/25 18:49:54.37')
+	return (ephemtime2 - ephemtime1)
+
+	(6) Return now-time with timezone WITH/WITHOUT Daylight Saving Time
+	a in [0,1,2], b=timezone/None
+	c=None/'daylight': use daylight, c=False: don't use daylight
+	** Time(0/1/2, timezone, c)
+	'''
+	#--------------------------------------------------
+	def Timezone( a, b ) : 
+		'''
+		Return local/system timezone (int)
+		Time('timezone')
+		>=0:east, <0:west
+		'''
+		return -time.timezone/3600
+	#--------------------------------------------------
+	def ephemTOsec1970( a, b ) : 
+		'''
+		ephemtime to sec1970 with timezone
+		Time(ephemtime, timezone),  timezone can =None
+		Time('2016/10/25 16:39:24.68', 8)
+		'''
+		if (b is None) : b, offset = Timezone('timezone',None), 0
+		else : offset = b*3600 + time.timezone  # second
+		# Calibrate the timezone without local-law (Daylight Saving Time)
+		offset += time.mktime(time.strptime('1970/01/01 00:00:00', '%Y/%m/%d %H:%M:%S')) + Timezone('timezone',None)*3600
+		n = a.rfind('.')
+		if (n < 0) : dot = 0
+		else : dot, a = float(a[n:]), a[:n]
+		sec1970 = time.mktime(time.strptime(a, '%Y/%m/%d %H:%M:%S')) + dot - offset
 		return sec1970
-	(4) time1 and time2 are timeephem or timesee string
-		return (time2 - time1) in second
-	'''
-	if (type(time1) != str) : 
-		sec1970, localtime = time.time(), time.localtime()
-		sec1970p = ('%.1f' % (sec1970-int(sec1970)))[1:]
-		timeephem = time.strftime('%Y/%m/%d %H:%M:%S', localtime) + sec1970p
-		timesee = time.strftime('%Y/%m/%d %p %I:%M:%S', localtime) + sec1970p
-		timeoutname = time.strftime('%Y.%m.%d.%p.%I.%M.%S', localtime)
-		timelist = [timeephem, timesee, timeoutname]
-		if (time1 is None) : return timelist
-		try : return timelist[time1]
-		except : return timelist[0]
-	else : 
-		n = str(time1).rfind('.')
-		if (n == -1) : n = len(time1)
-		try : sec19701 = time.mktime(time.strptime(time1[:n], '%Y/%m/%d %p %I:%M:%S')) + float(time1[n:])
-		except : sec19701 = time.mktime(time.strptime(time1[:n], '%Y/%m/%d %H:%M:%S')) + float(time1[n:])
-		if (time2 is None) : return sec19701
-		n = str(time2).rfind('.')
-		if (n == -1) : n = len(time1)
-		try : sec19702 = time.mktime(time.strptime(time2[:n], '%Y/%m/%d %p %I:%M:%S')) + float(time2[n:])
-		except : sec19702 = time.mktime(time.strptime(time2[:n], '%Y/%m/%d %H:%M:%S')) + float(time2[n:])
-		dt = (sec19702 - sec19701) /3600.
-		h = int(dt)
-		m = int((dt-h)*60)
-		s = ((dt-h)*60-m)*60
-		h, m, s = str(h), str(m), ('%.1f' % s)
-		if (len(h) == 1) : h = '0'+h
-		if (len(m) == 1) : m = '0'+m
-		if (s.find('.') == 1) : s = '0'+s
-		return h+':'+m+':'+s
+	#--------------------------------------------------
+	def Interval( a, b ) : 
+		'''
+		time interval between two ephemtimes
+		Time(ephemtime1, ephemtime2)
+		ephemtime2 - ephemtime1
+		Time('2016/10/25 16:39:24.68', '2016/11/25 18:49:54.37')
+		'''
+		n = a.rfind('.')
+		if (n < 0) : dot = 0
+		else : dot, a = float(a[n:]), a[:n]
+		try : sec19701 = time.mktime(time.strptime(a, '%Y/%m/%d %H:%M:%S')) + dot 
+		except : sec19701 = time.mktime(time.strptime(a, '%Y/%m/%d %p %I:%M:%S')) + dot 
+		n = b.rfind('.')
+		if (n < 0) : dot = 0
+		else : dot, b = float(b[n:]), b[:n]
+		try : sec19702 = time.mktime(time.strptime(b, '%Y/%m/%d %H:%M:%S')) + dot 
+		except : sec19702 = time.mktime(time.strptime(b, '%Y/%m/%d %p %I:%M:%S')) + dot 
+		d = (sec19702 - sec19701)/3600.  # hour
+		h, d = int(d), (d-int(d))*60  # min
+		m, s = int(d), (d-int(d))*60  # sec
+		hms = str(h)+':'+str(m)+':'+('%.1f' % s)
+		return hms
+	#--------------------------------------------------
+	def sec1970TOephem( a, b ) : 
+		'''
+		sec1970 to ephemtime with timezone
+		Time(sec1970, timezone),  timezone can =None
+		Time(1477411200.729252, 8)
+		'''
+		if (b is None) : b, offset = Timezone('timezone',None), 0
+		else : offset = b*3600 + time.timezone  # second
+		offset += time.mktime(time.strptime('1970/01/01 00:00:00', '%Y/%m/%d %H:%M:%S')) + Timezone('timezone',None)*3600
+		dot, a = a-int(a), int(a)
+		ephemtime = time.strftime('%Y/%m/%d %H:%M:%S', time.localtime(a+offset)) + str(dot)[1:4]
+		return ephemtime
+	#--------------------------------------------------
+	def Nowtime( a, b, c ) : 
+		'''
+		Return now-time with timezone
+		a in [0,1,2], b=timezone/None
+		WITH 
+		'''
+		if (b is None) : b, offset = Timezone('timezone',None), 0
+		else : offset = b*3600 + time.timezone  # second
+		if (c is False) : offset += time.mktime(time.strptime('1970/01/01 00:00:00', '%Y/%m/%d %H:%M:%S')) + Timezone('timezone',None)*3600
+		localtime = time.localtime(time.time()+offset)
+		if (a == 0) : fmt = '%Y/%m/%d %H:%M:%S'
+		elif (a == 1) : fmt = '%Y/%m/%d %p %I:%M:%S'
+		elif (a == 2) : fmt = '%Y.%m.%d.%p.%I.%M.%S'
+		timestr = time.strftime(fmt, localtime)
+		return timestr
+	#--------------------------------------------------
+	istype = IsType()
+	if (str(a).lower() == 'timezone') : 
+		return Timezone(a, b)
+	#--------------------------------------------------
+	elif (istype.isstr(a) and (b is None or istype.isint(b))) : 
+		if (c is None) : return ephemTOsec1970(a, b)
+		else : return sec1970TOephem( ephemTOsec1970(a, b), c )
+	#--------------------------------------------------
+	elif (istype.isstr(a) and istype.isstr(b)) : 
+		return Interval(a, b)
+	#--------------------------------------------------
+	elif (istype.isfloat(a) or a > 2) : 
+		return sec1970TOephem(a, b)
+	#--------------------------------------------------
+	else : return Nowtime(a, b, c)
 
 

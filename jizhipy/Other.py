@@ -1,4 +1,5 @@
 import os
+from npfmt import *
 
 
 
@@ -22,4 +23,9 @@ def Print( a, precision=6, suppress=True ) :
 	np.set_printoptions(precision=precision, suppress=suppress)
 	print a
 
+
+
+def Num( a, dtype=None ) : 
+	a = npfmt(a, dtype).flatten()[0]
+	return a
 

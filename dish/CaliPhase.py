@@ -1,5 +1,6 @@
 import os
 import time
+from copy import deepcopy as dcopy
 from AntArray import *
 from Masking import *
 import jizhipy as jp
@@ -124,7 +125,7 @@ def _DoMultiprocess_Plot( iterable ) :
 	strbl = iterable[1][-1]
 	freq, func, color, outdir, which, nsigma = iterable[2][:6]
 	which = which.lower()
-	if (which == 'deff') : dyDeff, fwhm2sigmafactor, dishdiam = iterable[2][-3:]
+	if (which == 'deff') : dyDeff, fwhm2sigmafactor, antform = iterable[2][-3:]
 	elif (which == 'lew') : fitLew, bl, dyLew = iterable[2][-3:]
 	elif (which in ['phaseadd', 'phase']) : fitLew, bl = iterable[2][-2:]
 	#--------------------------------------------------
@@ -163,7 +164,7 @@ def _DoMultiprocess_Plot( iterable ) :
 			plt_axes('y', 'both', [0.1, 0.05], '%.1f')
 			plt.legend()
 		#	plt.title(r'Fitted effective diameter Deff$=\frac{\lambda}{'+('%.3f' % fwhm2sigmafactor)+r' \cdot \sigma}$, baseline='+strbl[i], size=16)
-			plt.title(r'Fitted effective diameter ('+str(dishdiam)+'m), baseline='+strbl[i], size=16)
+			plt.title(r'Fitted effective diameter ('+str(antform)+'m), baseline='+strbl[i], size=16)
 			plt.savefig(outdir+'Deff_'+strbl[i]+'_'+str(nsigma)+'.png')
 		#--------------------------------------------------
 		elif (which == 'lew') : 
@@ -193,43 +194,38 @@ def _DoMultiprocess_Plot( iterable ) :
 class CaliPhase( object ) : 
 
 
-	def __init__( self, antarray=None, masking=None, caligain=None, nsigma=4, fwhm2sigmafactor=2.287, fitLew=2, plotnv=None, plotfreq=None, Nprocess=None, verbose=True, outdir=None ) : 
+#	def __init__( self, antarray=None, masking=None, caligain=None, nsigma=4, fwhm2sigmafactor=2.287, fitLew=2, plotnv=None, plotfreq=None, Nprocess=None, verbose=True, outdir=None ) : 
+	def __init__( self, antarray=None, masking=None, caligain=None, fwhm2sigmafactor=2.287, Nprocess=None, verbose=True, outdir=None ) : 
 		'''
 		antarray: instance of class:AntArray
 		masking:  instance of class:Masking
 		caligain: instance of class:CaliGain
-		Note that:
-			If the fringe in one AntArray, that antarray is one, however, if the fringe in two AntArray, antarray must be pair of () or []: (antarray1, antarray2).
-			masking, caligain must have the same shape as antarray
-			If nothing, use None:
-				antarray = [antarray1, antarray2]
-				masking  = [masking1,  None]
-				caligain = [None,      caligain2]
-
-		nsigma: 
-			times of the sigma of the beam/fringe
 
 		fwhm2sigmafactor:
 			sigma = lambda /Deff /fwhm2sigmafactor
 
-		fitLew:
-			=0, 1, 2
-			Different metohds to fit Lew
-
-		plotfreq:
-			in MHz
-
-		plotnv:
-			AntArray.visorder[plotnv]
-			plotnv is the number/index/order of visorder, NOT the number/index/order of AntArray.Blorder.blorder
-
-		If ==None (except Nprocess), don't initial it
+#		nsigma: 
+#			times of the sigma of the beam/fringe
+#
+#		fitLew:
+#			=0, 1, 2
+#			Different metohds to fit Lew
+#
+#		plotfreq:
+#			in MHz
+#
+#		plotnv:
+#			AntArray.visorder[plotnv]
+#			plotnv is the number/index/order of visorder, NOT the number/index/order of AntArray.Blorder.blorder
+#
+#		If ==None (except Nprocess), don't do __init__() it
 		'''
 		self.starttime = jp.Time(1)
 		class _Params( object ) : pass
 		self.Params = _Params()
 		self.Params.init = {'nsigma':nsigma, 'fwhm2sigmafactor':fwhm2sigmafactor, 'fitLew':fitLew, 'Nprocess':Nprocess, 'verbose':verbose}
 		if (verbose is not None) : self.verbose = verbose
+		if (self.verbose) : print '\n'
 		self.Nprocess = jp.NprocessCPU(Nprocess, verbose)[0]
 		self.plotfreq, self.plotnv = plotfreq, plotnv
 		#--------------------------------------------------
@@ -246,56 +242,68 @@ class CaliPhase( object ) :
 			try : self.fitLew = int(fitLew)
 			except : self.fitLew = 2
 		#--------------------------------------------------
+#		if (antarray is not None) : 
+#			if (type(antarray) not in [tuple, list]) : 
+#				antarray = [antarray]
+#			count = np.zeros(len(antarray), int)
+#			nhdf5 = []
+#			for i in xrange(len(antarray)) : 
+#				if (antarray[i].vistype not in ['cross1','cross2']) :
+#					count[i] = 1
+#				nhdf5.append(antarray[i].Hdf5.nhdf5)
+#			nhdf5transit = antarray[0].Hdf5.nhdf5transit[-1]
+#			if (nhdf5transit not in nhdf5) : jp.Raise(Exception, 'antarray.Hdf5.nhdf5='+str(nhdf5)+' is NOT the files which contains the transit source (nhdf5='+str(nhdf5transit)+')')
+#			self.antarray = antarray  # share address, not copy
+#			if (count.sum() == 0) : self.vistype = 'cross'
+#			else : self.vistype = 'auto'
+#		#--------------------------------------------------
+#		#	self.antarray.SelectVisType()  # Ensure cross1
+#		if (masking is not None) : 
+#			if (type(masking) not in [tuple, list]) : 
+#				masking = [masking]
+#			self.masking = masking
+#		#--------------------------------------------------
+#		if (caligain is not None) : 
+#			if (type(caligain) not in [tuple, list]) : 
+#				caligain = [caligain]
+#			self.caligain = caligain
+#		#--------------------------------------------------
 		if (antarray is not None) : 
-			count = np.zeros(len(antarray), int)
-			if (type(antarray) not in [tuple, list]) : 
-				antarray = [antarray]
-			nhdf5 = []
-			for i in xrange(len(antarray)) : 
-				if (antarray[i].vistype not in ['cross1','cross2']) :
-					count[i] = 1
-				nhdf5.append(antarray[i].Hdf5.nhdf5)
-			nhdf5transit = antarray[0].Hdf5.nhdf5transit[-1]
-			if (nhdf5transit not in nhdf5) : jp.Raise(Exception, 'antarray.Hdf5.nhdf5='+str(nhdf5)+' is NOT the files which contains the transit source (nhdf5='+str(nhdf5transit)+')')
-			self.antarray = antarray  # share address, not copy
-			if (count.sum() == 0) : self.vistype = 'cross'
-			else : self.vistype = 'auto'
+			self.antarray = antarray
+			try : a, b = antarray.Hdf5.transittime, antarray.Hdf5.nhdf5transit
+			except : jp.Raise(Exception, "NOT exist fo['transitsource'], you can set it by hand with AntArray.Transitsource()")
 		#--------------------------------------------------
-		#	self.antarray.SelectVisType()  # Ensure cross1
-		if (masking is not None) : 
-			if (type(masking) not in [tuple, list]) : 
-				masking = [masking]
-			self.masking = masking
-		#--------------------------------------------------
-		if (caligain is not None) : 
-			if (type(caligain) not in [tuple, list]) : 
-				caligain = [caligain]
-			self.caligain = caligain
-		#--------------------------------------------------
+		if (masking is not None) : self.masking = masking
+		if (caligain is not None) : self.caligain = caligain
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
 		if (outdir is not None) : self.outdir = jp.Mkdir(self.outdir+outdir)
 
 
 
-	def RADec( self, RA=None, Dec=None ) : 
+	def RADec( self, RAORsourcename=None, Dec=None ) : 
 		'''
 		Dec: Dec of the data/antenna pointing/calibration source
 		RA : RA  of the calibration source 
 		angle in degree
 		'''
-		self.Params.RADec = {'RA':RA, 'Dec':Dec}
-		if (RA  is not None) : self.RA  = RA
-		if (Dec is not None) : self.Dec = Dec
+		istype = jp.IsType()
+		if (istype.isstr(RAORsourcename)) : 
+			brightsource = jp.BrightSource()
+			self.RA, self.Dec = brightsource.RADec(RAORsourcename)
+		else : 
+			if (RA  is not None) : self.RA  = RA
+			if (Dec is not None) : self.Dec = Dec
+		self.Params.RADec = {'RA':self.RA, 'Dec':self.Dec}
 
 
 
-	def Fringe( self ) : 
+	def Fringe( self, whichtransitsource=-1 ) : 
 		'''
 		Take where is the fringe of the bright source
 		Generate: 
 			self.timerange: pixels range of the fringe
 			self.vis: MaskedArray of fringe data, has been reset by maskvalue
-			self.timem: in minute, self.timem.size==self.vis.shape[0]
+			self.timem: in minute, self.timem.size=self.vis.shape[0]
 			self.yshift: a constant shift of y-axis
 
 
@@ -303,67 +311,151 @@ class CaliPhase( object ) :
 
 		For auto-correlation, we can't remove this shifting because we don't know how much it is, however, for cross-correlation, the base line/average? should be zero because of exp{ix}, we can remove the shifting in the cross-correlation.
 		'''
-		nsigma = self.nsigma
-		self.nsigma = 10
-		#--------------------------------------------------
 		if (self.verbose) : 
 			starttime = jp.Time(1)
 			print 'CaliPhase.Fringe: start @', starttime
-		self.shift = []
-		inttime = self.antarray[0].Ant.inttime
-		freq = self.antarray[0].Ant.freq
-		Nt = self.antarray[0].vis.shape[0]  # each hdf5 must have the same number of points
-		timerange1, timerange2, ncount = -10, Nt+10, 0
+#		self.yshift = []
+		inttime = self.antarray.Ant.inttime
+		freq = self.antarray.Ant.freq
+		antform = jp.npfmt(self.antarray.Ant.antform)[0]
+#		Nt = self.antarray[0].vis.shape[0]  # each hdf5 must have the same number of points
+#		timerange1, timerange2, ncount = -10, Nt+10, 0
 		# Here we assume: fringe must be in 1 or 2 hdf5 files, not more than 2
 		#--------------------------------------------------
-		while (timerange1<0 and timerange2>Nt) : 
-			self.nsigma -= 0.1*ncount
-			# Ideal Gaussian beam
-			sigma = 300/freq.mean()/self.antarray[0].Ant.dishdiam/self.fwhm2sigmafactor
-			sigma = jp.Sph2Circ(sigma, self.Dec*np.pi/180)  # rad
-			timerange = 24*3600/(2*np.pi)*self.nsigma*sigma/inttime # total pixels of the fringe in nsigma
-			# transittime is calculated by LAST, starts from 0
-			transittime = self.antarray[0].Hdf5.transittimelocal[-1] /inttime  # pixels
-			timerange1, timerange2 = int(round(transittime-timerange/2)), int(round(transittime+timerange/2))  # pixels
-		if (self.nsigma == int(self.nsigma)) : self.nsigma = int(self.nsigma)
+
+		pixsource = int(self.antarray.Hdf5.transittime / inttime) - self.antarray.Hdf5.nhdf5[0] * self.antarray.Ant.N0
 		#--------------------------------------------------
-		if (timerange2 > Nt) : 
-			timerange1 = [timerange1, Nt]
-			timerange2 = [0, timerange2-Nt]
-			self.timerange = jp.npfmt([timerange1, timerange2])
-  		elif (timerange1 < 0) : 
-			timerange1 = [Nt+timerange1, Nt]
-			timerange2 = [0, transittime2]
-			self.timerange = jp.npfmt([timerange1, timerange2])
-		else : 
-			self.timerange = jp.npfmt([[timerange1, timerange2]])
-		# self.timerange is range of pixels
+
+		sigma = 300/freq.mean()/antform/self.fwhm2sigmafactor
+		sigma = jp.Sph2Circ(sigma, self.Dec*np.pi/180)  # rad
+		# Total pixels of the fringe in 1 sigma
+		pix1 = int(round(24*3600/(2*np.pi)*sigma/inttime))
+
+		pixpair10 = [pixsource-10*pix1/2, pixsource+10*pix1/2]
+		if (pixpair10[0] < 0) : pixpair10[0] = 0
+		if (pixpair10[1] > self.antarray.vis.shape[0]) : pixpair10[1] = self.antarray.vis.shape[0]
+#		timem10 = self.antarray.timem[pixpair10[0], pixpair10[1]]
+
+		if (self.vistype == 'cross') : self._PlotFringe(visTEN.data, ['Real part', 'Imaginary part'], ['b', 'r'])
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		timerangeONE = int(round(24*3600/(2*np.pi)*sigma/inttime))
+		# 10 sigma range
+
+		nsigmaTEN = 15
+		timerangeTEN1, timerangeTEN2 = transittime-nsigmaTEN*timerangeONE/2, transittime+nsigmaTEN*timerangeONE/2+1  # pixels
+		# self.nsigma
+		timerangeSELF1, timerangeSELF2 = transittime-self.nsigma*timerangeONE/2, transittime+self.nsigma*timerangeONE/2+1  # pixels
+
+		trTEN  = np.arange(timerangeTEN1, timerangeTEN2)
+		trSELF = np.arange(timerangeSELF1, timerangeSELF2)
+
+		trTENfile, trTENlocal = trTEN / self.antarray[0].Nt, trTEN % self.antarray[0].Nt
+		trSELFfile, trSELFlocal = trSELF / self.antarray[0].Nt, trSELF % self.antarray[0].Nt
+
+		nhdf5TEN = np.arange(trTENfile[0], trTENfile[-1]+1)
+		nhdf5SELF = np.arange(trSELFfile[0], trSELFfile[-1]+1)
+
+		timerangeTEN, timerangeSELF = [], []
+		for i in xrange(nhdf5TEN.size) : 
+			ntmp = trTENlocal[trTENfile==nhdf5TEN[i]]
+			timerangeTEN.append([ntmp[0], ntmp[-1]+1])
+		for i in xrange(nhdf5SELF.size) : 
+			ntmp = trSELFlocal[trSELFfile==nhdf5SELF[i]]
+			timerangeSELF.append([ntmp[0], ntmp[-1]+1])
+		timerangeTEN, timerangeSELF = np.array(timerangeTEN), np.array(timerangeSELF)
 		#--------------------------------------------------
-		self.vis, mask, self.yshift = [], [], []
-		for i in xrange(len(self.antarray)) : 
-			visi=self.antarray[i].vis[:,:,self.antarray[i].visorder]
-			if (len(visi.shape)==2) : visi = visi[:,:,None]
-			#--------------------------------------------------
-			try : 
-				visi[self.masking[i].mask]= self.masking[i].maskvalue
-				mask.append(self.masking[i].mask)
-			except : 
-				lx = (self.timerange[i,1]-self.timerange[i,0],)
-				mask.append( np.zeros(lx+visi.shape[1:], bool) )
-			#--------------------------------------------------
-			try : 
-				x = jp.Edge2Center(self.caligain[i].nsplit)
-				y = self.caligain[i].gaintmean
-				xnew = np.arange(visi.shape[0])
-				gaintmean = []
-				for j in xrange(y.shape[-1]) : 
-					gaintmean.append(jp.Interp1d(x, y[:,0,j], new))
-				visi /= np.array(gaintmean)[:,None,:]
+
+		# Plot TEN
+		visTEN, maskTEN = [], []
+		antarray = AntArray()
+		antarray.__dict__ = self.antarray[0].__dict__
+		antarray.verbose = False
+		for i in xrange(nhdf5TEN.size) : 
+			antarray.WhichHdf5(nhdf5TEN[i])
+			masking = Masking(antarray, verbose=False)
+			try : masking.MaskNoiseSource(self.masking[0].noisesource.pixstart, self.masking[0].noisesource.pixlength, self.masking[0].noisesource.pixperiod)
 			except : pass
-			#--------------------------------------------------
-			self.yshift.append( visi.mean(0) )
-			self.vis.append( visi[self.timerange[i,0]:self.timerange[i,1]] )
+			vis=antarray.vis[:,antarray.freqorder,antarray.visorder]
+			if (antarray.freqorder.size == 1) : vis = vis[:,None]
+			if (antarray.visorder.size == 1) : vis = vis[:,:,None]
+			vis[masking.mask] = masking.maskvalue
+			visTEN.append(vis[timerangeTEN[i,0]:timerangeTEN[i,1]])
+			maskTEN.append(masking.mask[timerangeTEN[i,0]:timerangeTEN[i,1]])
+		visTEN = np.concatenate(visTEN, 0)
+		maskTEN = np.concatenate(maskTEN, 0)
+		visTEN = np.ma.MaskedArray(visTEN, maskTEN)
+		maskTEN = antarray = masking = vis = 0 #@
+		self.yshift10 = visTEN.mean(0)  #@#@
+		visTEN -= self.yshift10
+
+		self.timem = trTEN * self.antarray[0].Ant.inttime /60
+		if (self.vistype == 'cross') : self._PlotFringe(visTEN.data, ['Real part', 'Imaginary part'], ['b', 'r'])
+		else : self._PlotFringe(visTEN.data, ['Auto'], ['b'])
 		#--------------------------------------------------
+
+		np.save(self.outdir+'timem_CygA_1', self.timem)
+		print visTEN.data.shape
+		np.save(self.outdir+'vis_CygA_1', visTEN.data.flatten())
+
+		jp.Raise()
+
+
+
+
+
+
+
+
+
+
+#			visi = self.antarray[i].vis[:,self.antarray[i].freqorder,self.antarray[i].visorder]
+#			nf, nv = self.antarray[i].freqorder.size, self.antarray[i].visorder.size
+#			if (nf == 1) : visi = visi[:,None]
+#			if (nv == 1) : visi = visi[:,:,None]
+#			#--------------------------------------------------
+#
+#			try : 
+#				visi[self.masking[i].mask]= self.masking[i].maskvalue
+#				mask.append(self.masking[i].mask)
+#			except : 
+#				lx = (timerangeTEN[i,1]-timerangeTEN[i,0],)
+#				mask.append( np.zeros(lx+visi.shape[1:], bool) )
+#			#--------------------------------------------------
+#
+#			try : 
+#				x = jp.Edge2Center(self.caligain[i].nsplit)
+#				y = self.caligain[i].gaintmean
+#				xnew = np.arange(visi.shape[0])
+#				gaintmean = []
+#				for j in xrange(y.shape[-1]) : 
+#					gaintmean.append(jp.Interp1d(x, y[:,0,j], new))
+#				visi /= np.array(gaintmean)[:,None,:]
+#			except : pass
+#			#--------------------------------------------------
+#
+#			self.yshift.append( visi.mean(0) )
+#			self.vis.append( visi[timerangeTEN[i,0]:timerangeTEN[i,1]] )
+#		#--------------------------------------------------
+
 		if (len(self.vis) == 1) : 
 			self.vis = self.vis[0]
 			mask = mask[0]
@@ -371,15 +463,19 @@ class CaliPhase( object ) :
 			self.vis = np.concatenate(self.vis, 0)
 			mask = np.concatenate(mask, 0)
 		#--------------------------------------------------
+
 		if (self.vistype == 'cross') : 
 			if (len(self.yshift) == 2) : self.yshift = ((self.yshift[0]+self.yshift[1])/2.)[None,:,:]
 			else : self.yshift = self.yshift[0][None,:,:]
 			self.vis -= self.yshift
 		else : self.vis = self.vis.real
 		#--------------------------------------------------
+
+		print self.vis.shape, mask.shape
+		jp.Raise()
 		self.vis   = np.ma.MaskedArray(self.vis, mask)  #@#@
-		Npix = (self.timerange[:,1]-self.timerange[:,0]).sum()
-		self.timem = np.arange(self.timerange[0,0], self.timerange[0,0]+Npix) *inttime/60. #@#@ min
+		Npix = (timerange[:,1]-timerange[:,0]).sum()
+		self.timem = np.arange(timerange[0,0], timerange[0,0]+Npix) *inttime/60. #@#@ min
 		mask = 0 #@
 		#--------------------- Plot -----------------------
 		if (self.vistype == 'cross') : self._PlotFringe(self.vis, ['Real part', 'Imaginary part'], ['b', 'r'])
@@ -427,7 +523,8 @@ class CaliPhase( object ) :
 		self.vis = jp.Smooth(self.vis.data, 0, 3, timetimes, Nprocess=self.Nprocess)
 		self.vis = np.ma.MaskedArray(self.vis, mask)
 		array.append(self.vis)
-		self._PlotFringe(array, [['Real part','Imaginary part'],['Smoothed','Smoothed']], [['b','r'],['m','g']], [1,3])
+		if (self.vistype == 'cross') : self._PlotFringe(array, [['Real part','Imaginary part'],['Smoothed','Smoothed']], [['b','r'],['m','g']], [1,3])
+		else : self._PlotFringe(array, [['Auto-corr'],['Smoothed']], [['b'],['r']], [1,3])
 		if (self.verbose) : 
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
@@ -451,7 +548,8 @@ class CaliPhase( object ) :
 				print 'Cost:', costtime+'     Total:', tottime+'\n'
 		# Initial guess
 		inttime = self.antarray[0].Ant.inttime
-		s0 = 300/self.antarray[0].Ant.freq.mean()/self.antarray[0].Ant.dishdiam/2.287
+		antform = jp.npfmt(self.antarray[0].Ant.antform)[0]
+		s0 = 300/self.antarray[0].Ant.freq.mean()/antform/2.287
 		#--------------------------------------------------
 		beam = abs(self.vis.data)
 	#	beam = ArrayAxis(beam, 0, -1, 'move')
@@ -488,11 +586,15 @@ class CaliPhase( object ) :
 
 
 
-	def FitPhase( self ) : 
+	def FitPhase( self, fitLew=None ) : 
 		'''
 		(1) Because there is dPhase, fringe is not sensitive enough to Lew, we need to first fit the initial guess of dPhase.
 		(2) Also because fringe is not sensitive enough to Lew, different range of fringe (nsigma=1, 2, 3, ...) have very different Lew.
 		'''
+		if (fitLew is not None) : 
+			try : self.fitLew = int(fitLew)
+			except : self.fitLew = 2
+		#--------------------------------------------------
 		if ('Timeb' not in self.__dict__.keys()) : self.FitBeam()
 		if (self.verbose) : 
 			starttime = jp.Time(1)
@@ -523,12 +625,11 @@ class CaliPhase( object ) :
 		#--------------------------------------------------
 		pf = np.concatenate(pf)  # (nv*nf, 2)
 		pf = pf.reshape(shape[:2]+(pf.shape[-1],)).T  # (2,nf,nv)
-		self.Phaseaddp = pf[0]
-		self.Phaseaddp %= (2*np.pi)
+		self.__dict__['Phaseaddp'+str(self.fitLew)] = pf[0] %(2*np.pi)
 		if (self.fitLew) : self.Lewp = pf[1]
 		#--------------------------------------------------
 		if (self.fitLew) : np.save(self.outdir+'Lewp_'+str(self.nsigma)+'_m'+str(self.fitLew)+'.npy', self.Lewp)
-		np.save(self.outdir+'Phaseaddp_'+str(self.nsigma)+'.npy', self.Phaseaddp)
+		np.save(self.outdir+'Phaseaddp'+str(self.fitLew)+'_'+str(self.nsigma)+'.npy', self.__dict__['Phaseaddp'+str(self.fitLew)])
 		if (self.verbose) : 
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
@@ -766,7 +867,8 @@ class CaliPhase( object ) :
 			return
 		if (self.verbose) : print '    Plotting    Deff    ......'
 		send = tuple(Deff) + (strbl,)
-		bcast = (freq, func, color, outdir, 'deff', self.nsigma, dyDeff, self.fwhm2sigmafactor, self.antarray[0].Ant.dishdiam)
+		antform = jp.npfmt(self.antarray[0].Ant.antform)[0]
+		bcast = (freq, func, color, outdir, 'deff', self.nsigma, dyDeff, self.fwhm2sigmafactor, antform)
 		if (Nprocess <= 1) : 
 			iterable = [(0,len(strbl)), send, bcast]
 			_DoMultiprocess_Plot( iterable )
@@ -801,9 +903,10 @@ class CaliPhase( object ) :
 
 	def _PlotPhaseadd( self, outdir, strbl, Nprocess ) : 
 		freq = self.antarray[0].Ant.freq
-	#	func,phaseadd,color = ['FitPhase','FitExp'], [], ['b','r']
-		func, phaseadd, color = ['FitPhase','FitVis','FitExp'], [], ['b','r','c']
-		try    : phaseadd.append(self.Phaseaddp.T*180/np.pi) # deg
+		func, phaseadd, color = ['FitPhase-m1','FitPhase-m2','FitVis','FitExp'], [], ['b','r','c','k']
+		try    : phaseadd.append(self.Phaseaddp1.T*180/np.pi) # deg
+		except : phaseadd.append(None)
+		try    : phaseadd.append(self.Phaseaddp2.T*180/np.pi) # deg
 		except : phaseadd.append(None)
 		try    : phaseadd.append(self.Phaseaddv.T*180/np.pi)
 		except : phaseadd.append(None)
@@ -859,24 +962,26 @@ class CaliPhase( object ) :
 			bl = abs(bl[:,0]) # longest East-West baseline
 			nv = np.where(bl==bl.max())[0][0]
 		else : nv = self.plotnv
-		freq = self.antarray[0].Ant.freq
+		freq=self.antarray[0].Ant.freq[self.antarray[0].freqorder]
 		if (self.plotfreq is None) : plotfreq = freq.mean()
 		else : plotfreq = self.plotfreq
-		freqstr = str(int(round(plotfreq)))
 		nvbl = np.arange(len(self.antarray[0].Blorder.blorder))[self.antarray[0].visorder][nv]
 		bl = self.antarray[0].Blorder.Order2Bl(nvbl)
 		strbll = '=(%.3f, %.3f)' % tuple(self.antarray[0].Blorder.baseline[nvbl][:2])
 		strbl = str(bl[0])+'-'+str(bl[1])
 		nf = abs(freq-plotfreq)
 		nf = np.where(nf==nf.min())[0][0]
+		freqstr = str(int(round(freq[nf])))
 		#--------------------------------------------------
 		# Plot fringe
-		vmax = []
+		vmax, vmin = [], []
 		if (self.vistype == 'cross') : plt.figure(figsize=(17,6))
 		for i in xrange(len(array)) : 
 			vmax.append( abs(array[i][:,nf,nv]).max()*1.05 )
+			vmin.append( abs(array[i][:,nf,nv]).min()*0.95 )
 			scale = jp.SciNot(vmax[-1])[1]-2
 			vmax[-1] /= 10.**scale
+			vmin[-1] /= 10.**scale
 			if (self.vistype == 'cross') : 
 				plt.subplot(1,2,1)
 				plt.plot(self.timem, array[i].real[:,nf,nv]/10.**scale, color=color[i][0], lw=lw[i], label=label[i][0])
@@ -889,7 +994,9 @@ class CaliPhase( object ) :
 				plt_axes('x', 'both', [xmajor,1])
 				plt.ylabel('[A.U.]', size=16)
 				vmax = np.array(vmax).max()
-				plt.ylim(-vmax, vmax)
+				vmin = np.array(vmin).min()
+				if (self.vistype == 'cross') : plt.ylim(-vmax, vmax)
+				else : plt.ylim(vmin, vmax)
 			if (self.vistype != 'cross') : continue
 			plt.subplot(1,2,2)
 			plt.plot(self.timem, array[i].imag[:,nf,nv]/10.**scale, color=color[i][1], lw=lw[i], label=label[i][1])
@@ -925,3 +1032,6 @@ class CaliPhase( object ) :
 		plt.title('Total phase of baseline='+strbl+strbll+' @ '+freqstr+'MHz', size=13)
 		plt.savefig(self.outdir+'phase_'+strbl+'_'+freqstr+'MHz_'+str(self.nsigma)+'.png')
 		plt.close()
+
+
+

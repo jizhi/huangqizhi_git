@@ -13,6 +13,11 @@ class IsType( object ) :
 		typestr = str(type(a)).split("'")[-2].split('.')[-1][:5]
 		if (typestr == 'float') : return True
 		else : return False
+
+	def isnum( self, a ) : 
+		tf = self.isint(a) + self.isfloat(a)
+		if (tf == 0) : return False
+		else : return True
 	
 	def isstr( self, a ) : 
 		typestr = str(type(a)).split("'")[-2].split('.')[-1][:3]
@@ -37,6 +42,11 @@ class IsType( object ) :
 	def isndarray( self, a ) : 
 		typestr = str(type(a)).split("'")[-2].split('.')[-1]
 		if (typestr == 'ndarray') : return True
+		else : return False
+
+	def ismatrix( self, a ) : 
+		typestr = str(type(a)).split("'")[-2].split('.')[-1]
+		if (typestr == 'matrix') : return True
 		else : return False
 
 	def ismaskedarray( self, a ) : 

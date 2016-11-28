@@ -13,6 +13,9 @@ def Sort( array, along='[0,:]', l2s=False ) :
 		array[n1,n2,:,n4] must 1D so that we can sort along this
 		along=[:,2] : second column
 
+		'[0,:]' => 0-row
+		'[:,0]' => 0-column
+
 	l2s: 
 		l2s=False: from small to large (default)
 		l2s=True : from large to small

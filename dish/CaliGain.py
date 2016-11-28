@@ -15,6 +15,7 @@ class CaliGain( object ) :
 		self.Params = _Params()
 		self.Params.init = {'Nprocess':Nprocess, 'verbose':verbose}
 		self.Nprocess, self.verbose = Nprocess, verbose
+		if (self.verbose) : print '\n'
 		if (antarray is not None) : self.antarray = antarray
 		if (masking  is not None) : self.masking  = masking
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
@@ -40,12 +41,12 @@ class CaliGain( object ) :
 		# Read data
 		vistype = self.antarray.vistype[:-1]
 		if (vistype != 'auto') : 
-			print '    Error: CaliGaint.Gainnu() should use "auto-correlation", but now AntArray.vistype="'+self.antarray.vistype+'"'
+			print '    Warning: should use "auto-correlation", but now AntArray.vistype="'+self.antarray.vistype+'"'
+			print '    Do nothing !'
 			if (self.verbose) : print 'CaliGain.Gainnu:  end  @', jp.Time(1)+'\n'
-			exit()
+			return
 		#--------------------------------------------------
-		vis = self.antarray.vis[:,:,self.antarray.visorder].real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]  # 3D
+		vis = self.antarray.vis
 		# Replace masks
 		vis[self.masking.mask] = self.masking.maskvalue
 		vis = np.ma.MaskedArray(vis, self.masking.mask)  #@#@
@@ -78,7 +79,7 @@ class CaliGain( object ) :
 		xaxes = plt_axes('x', 'both', [25,5])
 		self._Plot(gainnu[Nlinelist], self.gainnumean, 1, titlehead, fighead, self.outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
 		if (self.verbose) : 
-			print '    gainnu.npy, gainnumean.npy, Nlinelist.npy  saved'
+			print '    gainnu.npy, gainnumean.npy, Nlinelist_nu.npy  saved to '+self.outdir
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
 			tottime = jp.Time(self.starttime, endtime)
@@ -87,7 +88,7 @@ class CaliGain( object ) :
 
 
 
-	def Gaint( self, timeper=3, timetimes=100, gaintper=3, gainttimes=100, Nline=20, legendsize=10, legendloc=1, masktime=None ) :
+	def Gaint( self, timeper=3, timetimes=10, gaintper=3, gainttimes=100, Nline=20, legendsize=10, legendloc=1, masktime=None ) :
 		'''
 		timeper, timetimes:
 			vis - Smooth(vis, 0, timeper, timetimes)
@@ -117,16 +118,29 @@ class CaliGain( object ) :
 		self.Params.Gaint = {'timeper':timeper, 'timetimes':timetimes, 'gaintper':gaintper, 'gainttimes':gainttimes, 'Nline':Nline, 'legendsize':legendsize, 'legendloc':legendloc, 'masktime':masktime}
 		#--------------------------------------------------
 		# Read data
-		vistype = self.antarray.vistype[:-1]
-		vis = self.antarray.vis[:,:,self.antarray.visorder]
-		if (vistype == 'auto') : vis = vis.real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]  # 3D
+		vis = self.antarray.vis
 		if (self.verbose) : progressbar.Progress()
 		#--------------------------------------------------
 		# Replace masks
 		vis[self.masking.mask] = self.masking.maskvalue
 		# Get the fluctuation
-		vis -= jp.Smooth(vis, 0, timeper, timetimes, Nprocess=self.Nprocess)
+		if (timeper < 3) : timeper = 3
+		viss = jp.Smooth(vis, 0, timeper, timetimes, Nprocess=self.Nprocess)
+		#-Plot---------------------------------------------
+		if (masktime is not None) : n1, n2 = masktime
+		else : n1, n2 = 0, vis.shape[0]
+		x = np.arange(n1, n2)
+		nbl = abs(self.antarray.Blorder.baseline[self.antarray.visorder][:,0])
+		nbl = np.where(nbl==nbl.max())[0][0]
+		plt.plot(x, vis[n1:n2,vis.shape[1]/2,nbl].real, 'b-', label='vis')
+		plt.plot(x, viss[n1:n2,vis.shape[1]/2,nbl].real, 'r-', label='Smooth(vis)')
+		plt.legend()
+		plt.title('Gain.Gaint: timeper=%i, timetimes=%i' % (timeper, timetimes), size=16)
+		plt.savefig(self.outdir+'Gain.Gaint_vis-smooth.png')
+		plt.close()
+		#-Plot-END-----------------------------------------
+		vis -= viss
+		viss = 0 #@
 		# Masked
 #		vis = np.ma.MaskedArray(vis, self.masking.mask)
 		if (self.verbose) : progressbar.Progress()
@@ -134,6 +148,7 @@ class CaliGain( object ) :
 		# Calculate the std of noise
 		# self.gaint: auto=>real, cross=>complex
 		self.gaint = np.zeros((len(self.nsplit)-1,)+vis.shape[1:], vis.dtype)
+		vistype = self.antarray.vistype[:-1]
 		for i in xrange(len(self.nsplit)-1) : 
 			if (self.verbose) : progressbar.Progress()
 			if (vistype == 'auto') : self.gaint[i] = (vis[self.nsplit[i]:self.nsplit[i+1]]**2).mean(0)**0.5
@@ -168,21 +183,28 @@ class CaliGain( object ) :
 			self.gaint = self.gaint.T
 			self.gaint.mask += masknsplit
 			self.gaint = self.gaint.T
-			gaintreset = jp.ResetMasked(self.gaint, 0, self.Nprocess)
+			gaintreset= jp.ResetMasked(self.gaint, 0, self.Nprocess)
 			self.gaint = self.gaint.data
 		else : gaintreset = self.gaint
 		# self.gaint, gaintreset
 		# Normalize self.gaint
 		gaint = self.gaint.copy()
-		gm = gaintreset.mean(0)
+		gm  = gaint.mean(0)
+		grm = gaintreset.mean(0)
 		if (vistype == 'auto') : 
-			gaint /= gaint.mean(0)
-			gaintreset /= gm
+			gm[gm==0] = 1
+			grm[grm==0] = 1
+			gaint /= gm
+			gaintreset /= grm
 		else : 
-			gaint.real /= gaint.real.mean(0)
-			gaint.imag /= gaint.imag.mean(0)
-			gaintreset.real /= gm.real
-			gaintreset.imag /= gm.imag
+			gm.real[gm.real==0] = 1
+			gm.imag[gm.imag==0] = 1
+			grm.real[grm.real==0] = 1
+			grm.imag[grm.imag==0] = 1
+			gaint.real /= gm.real
+			gaint.imag /= gm.imag
+			gaintreset.real /= grm.real
+			gaintreset.imag /= grm.imag
 		#--------------------------------------------------
 		Nedge = self.gaint.shape[1]/10
 		notNlinelist = range(0,Nedge)+range(self.gaint.shape[1]-Nedge,self.gaint.shape[1])
@@ -190,8 +212,12 @@ class CaliGain( object ) :
 		#--------------------------------------------------
 		# self.norm = self.gaint.mean(0) / self.gaintmean.mean(0)
 		gmm = self.gaintmean.mean(0)
-		if (vistype == 'auto') : self.norm = (gm / gmm)[None,:]
+		if (vistype == 'auto') : 
+			gmm[gmm==0] = 1
+			self.norm = (gm / gmm)[None,:]
 		else : 
+			gmm.real[gmm.real==0] = 1
+			gmm.imag[gmm.imag==0] = 1
 			normr = (gm.real / gmm.real)[None,:]
 			normi = (gm.imag / gmm.imag)[None,:]
 			self.norm = normr + 1j*normi
@@ -210,7 +236,7 @@ class CaliGain( object ) :
 		xaxes = None
 		self._Plot(gaint[:,Nlinelist], self.gaintmean, 0, titlehead, fighead, self.outdir, x, xlabel, xaxes, Nlinelist, legendsize, legendloc, progressbar)
 		if (self.verbose) : 
-			print '    gaint.npy, gaintmean.npy, Nlinelist.npy  saved'
+			print '    gaint.npy, gaintmean.npy, Nlinelist_t.npy  saved to '+self.outdir
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
 			tottime = jp.Time(self.starttime, endtime)
@@ -275,10 +301,15 @@ class CaliGain( object ) :
 		else : array = array.mean(1)
 		array = jp.Smooth(array, 0, gainper, gaintimes)
 		# Normalize again
-		if (array.dtype.name[:3] != 'com') : array /= array.mean(0)
+		am = array.mean(0)
+		if (array.dtype.name[:3] != 'com') : 
+			am[am==0] = 1
+			array /= am
 		else : 
-			array.real /= array.real.mean(0)
-			array.imag /= array.imag.mean(0)
+			am.real[am.real==0] = 1
+			am.imag[am.imag==0] = 1
+			array.real /= am.real
+			array.imag /= am.imag
 		if (axis == 0) : array = array[:,None,:]
 		else : array = array[None,:,:]
 		return array, Nlinelist
@@ -316,8 +347,7 @@ class CaliGain( object ) :
 			Use for plt.legend(fontsize=legendsize)
 		'''
 		if (self.verbose) : progressbar.Progress()
-		if (arraymean.dtype.name[:3] != 'com') : vistype = 'auto'
-		else : vistype = 'cross'
+		vistype = self.antarray.vistype[:-1]
 		axis = int(round(axis))
 		if (axis not in [0,1]) : jp.Raise('axis must be 0=>time OR 1=>freq')
 		array = jp.ArrayAxis(array, axis, 0, 'move')
@@ -372,8 +402,11 @@ class CaliGain( object ) :
 			xaxes
 			plt.ylabel('[A.U.]', size=16)
 			plt.ylim(vmin, vmax)
-			nstr = '1' if(vistype=='auto')else '2'
-			plt.title(titlehead+' of channel '+chanidxstr+', total '+str(ai.shape[1])+'+'+nstr+' curves', size=16)
+			if (vistype == 'auto') : 
+				nstr, channame = '1', 'channel='
+			else : 
+				nstr, channame = '2', 'baseline='
+			plt.title(titlehead+' of '+channame+chanidxstr+', total '+str(ai.shape[1])+'+'+nstr+' curves', size=16)
 			plt.savefig(outdir+fighead+'_chan'+chanidxstr+'_N'+str(ai.shape[1])+'.png')
 			plt.close()
 

@@ -77,9 +77,10 @@ class _AntArrayHdf5( object ) :
 	''' self.Hdf5 '''
 
 	def _Hdf5List( self, hdf5dir ) : 
+		''' self.hdf5dir, self.hdf5list '''
 		if (hdf5dir == '') : hdf5dir = './'
-		if (hdf5dir[-1]!='/') : hdf5dir += '/'
-		self.hdf5dir = hdf5dir
+		if (hdf5dir[-1] != '/') : hdf5dir += '/'
+		self.hdf5dir = str(hdf5dir)
 		self.hdf5list = jp.ShellCmd('ls '+hdf5dir+'*.hdf5')
 		ndel = 0
 		for i in xrange(len(self.hdf5list)) : 
@@ -88,17 +89,54 @@ class _AntArrayHdf5( object ) :
 				ndel += 1
 
 
-	def _WhichHdf5( self, whichhdf5 ) : 
-		''' whichhdf5: can be absolute path of current hdf5(str), or the order of this hdf5(int)
-		self.hdf5path: current hdf5 
-		self.nhdf5: order of current hdf5 in hdf5list '''
-		istype = jp.IsType()
-		if (istype.isstr(whichhdf5)) : 
-			self.hdf5path = whichhdf5
-			self.nhdf5 = self.hdf5list.index(hdf5path)
+
+	def _WhichHdf5( self, which, Ant ) : 
+		# self.Hdf5.nhdf5
+		sumwhich = 1
+		try : 
+			which = np.sort(which).flatten()
+			sumwhich = (which-np.arange(len(self.hdf5list))).sum()
+		except : pass
+		if (sumwhich == 0) : self.nhdf5 = which
 		else : 
-			self.nhdf5 = int(round(whichhdf5))
-			self.hdf5path = self.hdf5list[self.nhdf5]
+			for i in xrange(len(which)) : 
+				try : which[i] = int(which[i])
+				except : 
+					try : which[i] = self.hdf5list.index(self.hdf5dir+which[i])
+					except : which[i] = -1
+			which = np.sort(np.array(which, int))
+			self.nhdf5= which[(0<=which)*(which<len(self.hdf5list))]
+			which= np.arange(self.nhdf5[0], self.nhdf5[-1]+1)
+			if (self.nhdf5.size != which.size) : 
+				missing = []
+				for i in xrange(which.size) : 
+					if (which[i] not in self.nhdf5) : missing.append(which[i])
+				print 'Warning: self.Hdf5.nhdf5 is from '+str(which[0])+' to '+str(which[-1])+'(include), but now missing '+str(missing)+'\n'
+		#--------------------------------------------------
+
+		# self.Hdf5.hdf5path
+		if (sumwhich != 0) : 
+			self.hdf5path = []
+			for i in xrange(self.nhdf5.size) : 
+				self.hdf5path.append( self.hdf5list[self.nhdf5[i]] )
+		else : self.hdf5path = self.hdf5list[:]
+		#--------------------------------------------------
+
+		fo = h5py.File(self.hdf5path[0], 'r')
+		self.obstime = fo.attrs['obstime']
+		self.sec1970 = fo.attrs['sec1970']
+		#--------------------------------------------------
+
+		# self.Hdf5.transittime (in second, start from hdf5list[0] file), self.Hdf5.nhdf5transit
+		try : 
+			transittime = fo['transitsource'][:].T[0]
+			self.transittime = transittime - self.sec1970start
+			self.nhdf5transit = (self.transittime / Ant.inttime / Ant.N0).astype(int)
+		except : 
+			if ('nhdf5transit' not in self.__dict__.keys()) : 
+				print "Warning: NOT exist fo['transitsource'], you can set it by hand with AntArray.Transitsource()\n"
+		#--------------------------------------------------
+
 
 
 ##################################################
@@ -149,14 +187,17 @@ class AntArray( object ) :
 	
 		self.Hdf5.__dict__.keys() 
 			= [hdf5dir, hdf5list, hdf5path, nhdf5, obstime, sec1970,  nhdf5transit, transittimelocal, transittimetotal]
+				* transittimelocal, transittimetotal are pixels, NOT time in second
 
 		self.Ant.__dict__.keys()
-			= [noisesourcepos, inttime, lonlat, freq, dishdiam]
+			= [noisesourcepos, inttime, lonlat, freq, antform]
 
 		hdf5dir:
 			In this directory/folder, all .hdf5 are one continuum observation splited into several files. If one file one observation, this hdf5dir must just contain one file.
 		'''
+		self.starttime = jp.Time(1)
 		self.verbose = verbose
+		if (self.verbose) : print '\n'
 		if (hdf5dir is None) : return
 		self.Blorder = _AntArrayBlorder()
 		self.Hdf5    = _AntArrayHdf5()
@@ -167,50 +208,77 @@ class AntArray( object ) :
 		self._Blorder(fo)
 		self.MaskChannel()
 		self.SelectVisType('all')
+		self.Ant.N0 = fo['vis'].shape[0]
+		self.Hdf5.sec1970start = fo.attrs['sec1970']
+		self.Hdf5.obstimestart = fo.attrs['obstime']
+		#--------------------------------------------------
 
 
 
 	def WhichHdf5( self, whichhdf5 ) : 
 		'''
 		which:
-			can be absolute path: which = '/xxx/yyy.hdf5'
-			or index/number of this file: which = 3
-			or 'transitsource' which is not the Sun
+			(1) Can be absolute path: which = '/xxx/yyy.hdf5'
+			(2) Or index/number of the file: which = 3
+				(1,2) whichhdf5 can be one or list: 
+					whichhdf5 = [0,2,5,7,9,13,18]
+					If that, will merge them into one array!
+			(3) string with 'transitsource':
+				1. =='transitsource': last transitsource
+				2. =='transitsource5' or 'transitsource-5' or 'transitsource_5': 5-th transitsource (start from 1, not 0)
+			(4) whichhdf5='all'
 		'''
 		istype = jp.IsType()
-		if (istype.isstr(whichhdf5)) : 
-			if (whichhdf5.lower() == 'transitsource') : which = 0
-			else : which = whichhdf5
+		if ('transitsource' in str(whichhdf5).lower()) : which = 0
+		elif (str(whichhdf5).lower() == 'all') : which = np.arange(len(self.Hdf5.hdf5list))
 		else : which = whichhdf5
-		self._WhichHdf5(which)
-		if (istype.isstr(whichhdf5)) : 
-			if (whichhdf5.lower() == 'transitsource') : 
-				self._WhichHdf5(self.Hdf5.nhdf5transit[-1])
+		if (not (istype.islist(which) or istype.istuple(which) or istype.isndarray(which))) : which = [which]
+		#--------------------------------------------------
+		self.Hdf5._WhichHdf5(which, self.Ant)
+		if ('transitsource' in str(whichhdf5).lower()) : 
+				whichhdf5 = whichhdf5[len('transitsource'):]
+				if (whichhdf5 == '') : nts = -1
+				else : 
+					whichhdf5 = whichhdf5.split('-')[-1]
+					whichhdf5 = whichhdf5.split('_')[-1]
+					nts = int(whichhdf5)
+				try : nts = self.Hdf5.nhdf5transit[nts]
+				except : jp.Raise(Exception, "NOT exist fo['transitsource'], you can set it by hand with AntArray.Transitsource()")
+				self.Hdf5._WhichHdf5([nts], self.Ant)
+		#--------------------------------------------------
 
 
 
-	def _WhichHdf5( self, whichhdf5 ) : 
-		self.Hdf5._WhichHdf5(whichhdf5)
-		fo = h5py.File(self.Hdf5.hdf5path, 'r')
-		self.vis = fo['vis']  #@
-		self.Hdf5.obstime = fo.attrs['obstime']
-		self.Hdf5.sec1970 = fo.attrs['sec1970']
-		# transittime (second) relates to the beginning of current hdf5 
-		self.Hdf5.transittimelocal = fo['transitsource'][:].T[0] - self.Hdf5.sec1970
-		# transittime (second) relates to the beginning of the first hdf5 (hdf5list[0])
-		self.Hdf5.transittimetotal = self.Hdf5.transittimelocal + self.Hdf5.nhdf5*self.Ant.inttime*self.vis.shape[0]
-		# nhdf5 of the transit source
-		self.Hdf5.nhdf5transit = (self.Hdf5.transittimetotal / (self.Ant.inttime * self.vis.shape[0])).astype(int)
+	def Transitsource( self, transittime ) : 
+		''' 
+		If NO fo['transitsource'], set self.Hdf5.nhdf5transit and self.Hdf5.transittime (second from hdf5list[0]) here
+
+		transittime:
+			in second, start from hdf5list[0] (the beginning)
+		'''
+		self.Hdf5.transittime = jp.npfmt(transittime).astype(float).take(0)
+		self.Hdf5.nhdf5transit = self.Hdf5.transittime / self.Ant.inttime / self.Ant.N0
+		#--------------------------------------------------
+
 
 
 	def _Ant( self, fo ) : 
 		self.Ant.lonlat = np.array([fo.attrs['sitelon'], fo.attrs['sitelat']])
-		self.Ant.dishdiam = fo.attrs['dishdiam']
 		self.Ant.inttime = fo.attrs['inttime']
+		self.Ant.telescope = fo.attrs['telescope']
+		try : self.Ant.noisesourcepos = fo['noisesource'][0]
+		except : pass
+		#--------------------------------------------------
+		if ('cylinder' in self.Ant.telescope.lower()) : 
+			self.Ant.antform = np.array([fo.attrs['cywid'], fo.attrs['cylen']])
+		else : self.Ant.antform = fo.attrs['dishdiam']
+		#--------------------------------------------------
 		freq1 = np.arange(fo.attrs['freqstart'], fo.attrs['freqstart']+fo.attrs['freqstep']*fo.attrs['nfreq'], fo.attrs['freqstep'])
 		freq2 = np.linspace(fo.attrs['freqstart'], fo.attrs['freqstart']+fo.attrs['freqstep']*fo.attrs['nfreq'], fo.attrs['nfreq'])
 		self.Ant.freq = freq1 if(freq1.size==fo.attrs['nfreq'])else freq2
-		self.Ant.noisesourcepos = np.array([-159.802, 11.920, 11.650])
+		#--------------------------------------------------
+		self.freqorder = np.arange(self.Ant.freq.size)
+
 
 
 	def _Blorder( self, fo ) : 
@@ -257,7 +325,6 @@ class AntArray( object ) :
 		#--------------------------------------------------
 		self._MaskChannel()  # Recal auto, cross1, cross2
 		self.SelectVisType(self.vistype)  # Reset visorder
-		#--------------------------------------------------
 
 
 
@@ -300,9 +367,92 @@ class AntArray( object ) :
 		elif (self.vistype == 'all') : 
 			self.visorder = self.Blorder.selectorder
 		else : 
-			Raise(Warning, "vistype='"+vistype.lower()+"' not in ['auto1', 'auto2', 'cross1', 'cross2, cross3'], reset to vistype='cross1'")
+			if (self.verbose) : print "Warning: vistype='"+vistype.lower()+"' not in ['auto1', 'auto2', 'cross1', 'cross2, cross3'], reset to vistype='cross1'\n"
 			self.vistype = 'cross1'
 			self.visorder = self.Blorder.cross1
+		if (self.visorder.size == 0) : jp.Raise(Exception, 'self.visorder.size == 0')
+
+
+
+	def SelectFreq( self, nfreq, unit=None ) : 
+		'''
+		nfreq, unit:
+			If ('hz' not in str(unit).lower()) : 
+					self.freqorder = nfreq
+					antarray.vis[:, self.freqorder, self.visorder]
+			Else, use nfreq to get self.freqorder
+		'''
+		nfreq = jp.npfmt(nfreq)
+		if ('hz' not in str(unit).lower()) : unit = ''
+		else : unit = unit.lower()
+		if (unit == '') : self.freqorder = nfreq.astype(int)
+		else : 
+			if (unit == 'hz') : nfreq = nfreq * 1e-6  # MHz
+			elif (unit == 'ghz') : nfreq = nfreq * 1e3
+			else : nfreq = 1.*nfreq
+			dfreq = abs(nfreq[:,None] - self.Ant.freq[None,:])
+			self.freqorder= np.where(dfreq==dfreq.min(1)[:,None])[1]
+		#--------------------------------------------------
+
+
+
+	def Vis( self ) : 
+		'''
+		Read the visibibity data
+
+		self.vis:
+			np.concatenate( fo['vis'][:,freqorder,visorder] )
+
+		self.timem:
+			in minute
+			self.timem[0] is the time(minute) on day self.Hdf5.obstime.split(' ')[0] (start from 0:0:0 A.M.)
+			Note that it is local time!
+		'''
+		if (self.verbose) : 
+			starttime = jp.Time(1)
+			print 'AntArray.Vis: start @', starttime
+
+		self.vis, axis = [], 1
+		if (self.freqorder.size > self.visorder.size) : axis = 2
+
+		for i in xrange(len(self.Hdf5.hdf5path)) : 
+			if (self.verbose) : print '    Reading file '+str(self.Hdf5.nhdf5[i])+' = "'+self.Hdf5.hdf5path[i].split('/')[-1]+'"'
+			fo = h5py.File(self.Hdf5.hdf5path[i], 'r')
+			vistmp = []
+			if (axis == 1) : 
+				for j in xrange(self.freqorder.size) : 
+					if ('auto' in self.vistype) : vistmp.append( fo['vis'][:,self.freqorder[j],self.visorder][:,None].real )
+					else : vistmp.append( fo['vis'][:,self.freqorder[j],self.visorder][:,None] )
+				vistmp = np.concatenate(vistmp, 1)
+				if (len(vistmp.shape)==2) : vistmp = vistmp[:,:,None]
+			elif (axis == 2) : 
+				for j in xrange(self.visorder.size) : 
+					if ('auto' in self.vistype) : vistmp.append( fo['vis'][:,self.freqorder,self.visorder[j]][:,:,None].real )
+					else : vistmp.append( fo['vis'][:,self.freqorder,self.visorder[j]][:,:,None] )
+				vistmp = np.concatenate(vistmp, 2)
+			self.vis.append(vistmp)
+		self.vis = np.concatenate(self.vis, 0)
+		#--------------------------------------------------
+
+		localtime = np.array(self.Hdf5.obstime.split(' ')[-1].split(':'), float)
+		localtime = localtime[0]*60+localtime[1]+localtime[2]/60
+		self.timem = np.arange(len(self.vis)) * self.Ant.inttime /60. + localtime 
+		#--------------------------------------------------
+		if (self.verbose) : 
+			endtime = jp.Time(1)
+			costtime = jp.Time(starttime, endtime)
+			tottime = jp.Time(self.starttime, endtime)
+			print 'AntArray.Vis:  end  @', endtime
+			print 'Cost:', costtime+'     Total:', tottime+'\n'
+
+		
+
+
+
+
+
+
+
 
 
 

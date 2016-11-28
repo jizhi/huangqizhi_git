@@ -13,13 +13,13 @@ class ProgressBar( object ) :
 
 	def __init__( self, string=None, Ntot=None, endnewline=True, pltend=False ):
 		self.string, self.Ntot, self.count = string, Ntot, Ntot
-		self.starttime0, self.starttime1 = Time()[:2]
+		self.starttime0, self.starttime1 = Time(0), Time(1)
 		self.endnewline, self.pltend = endnewline, pltend
  
 
 	def Progress( self, endstring='' ) : 
 		self.count -=1
-		currenttime0, currenttime1 = Time()[:2]
+		currenttime0, currenttime1 = Time(0), Time(1)
 		dtime = Time(self.starttime0, currenttime0)
 		if (self.count == self.Ntot-1) : font, end = '', ' \r'
 		elif (self.count != 0) : font, end = '\r', ' '

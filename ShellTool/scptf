@@ -11,6 +11,8 @@ Usage, examples:
 	scptf Linux:huangqizhi@node1 -t ~/study/test.py  # Temporarily set tarsys, tarusr, tarIP = Linux, huangqizhi, node1
 
 	scptf Linux:huangqizhi@node1  # Modify tarsys, tarusr, tarIP of this file!
+
+	scptf ssh -X huang@lal  # If you are normal count and can't modify /etc/hosts, use this to ssh with lal
 '''
 
 ##################################################
@@ -20,6 +22,9 @@ tarusr = 'huangqizhi'
 #tarsys = 'Darwin' # or 'Mac', Linux
 tarsys = 'Linux'
 tarIP  = 'storage1'
+
+hosts = {'bao':'193.55.144.12',
+         'lal':'134.158.91.15'}
 
 ##################################################
 
@@ -43,6 +48,16 @@ a = a[1:]
 
 if (len(a) == 0) : 
 	print tarsys+':'+tarusr+'@'+tarIP
+	exit()
+
+
+if (a[0] == 'ssh') : 
+	usr, ip = a[-1].split('@')
+	try : int(ip.split('.')[0])
+	except : a[-1] = usr+'@'+hosts[ip]
+	cmd = 'ssh '
+	for i in xrange(1, len(a)) : cmd += a[i]+' '
+	os.system(cmd[:-1])
 	exit()
 
 
@@ -71,13 +86,12 @@ if (len(a0)==2 and '@' in a0[1]) :
 		exit()
 
 
-
 # Must scptf -t/f
 if (len(a) < 2) : 
 	print 'missing arguments, must be "scptf -t file(s)" or "scptf -f file(s)"'
 	exit()
-if (a[0]!='-t' and a[0]!='-f') : 
-	print '"scptf '+a[0]+'", wrong action, must be "scptf -t" or "scptf -f"'
+if (a[0]!='-t' and a[0]!='-f' and a[0]!='ssh') : 
+	print '"scptf '+a[0]+'", wrong action, must be "scptf -t" or "scptf -f" or "scptf ssh"'
 	exit()
 
 act, a, scpopt = a[0], a[1:], ''

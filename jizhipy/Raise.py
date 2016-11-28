@@ -20,7 +20,7 @@ def SysFrame( downstack=0, upstack=None ) :
 	elif (upstack > stackmax) : upstack = stackmax
 	if (downstack == upstack) : upstack += 1
 	#--------------------------------------------------
-	outstr, files, funcs = '', [], []
+	outstr, files, funcs, lines, sentences = '', [], [], [], []
 	for i in xrange(upstack, downstack, -1) : 
 		f = sys._getframe(i)
 		filename = f.f_code.co_filename
@@ -30,8 +30,15 @@ def SysFrame( downstack=0, upstack=None ) :
 		files.append(filename)
 		if (name[0] == '<') : funcs.append('')
 		else : funcs.append(name)
+		lines.append(lineno)
+		st = open(files[-1]).readlines()[lines[-1]-1]
+		for i in xrange(0, len(st)) : 
+			if (st[i] != '\t') : break
+		st = st[i:]
+		if (st[-1] == '\n') : st = st[:-1]
+		sentences.append(st)
 	outstr = outstr[:-4]
-	return [outstr, files, funcs]
+	return [outstr, files, funcs, lines, sentences]
 
 
 

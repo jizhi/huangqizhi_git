@@ -1,6 +1,6 @@
 from npfmt import *
 from IsType import *
-from Interp1d import Interp1d
+from Interp1d import *
 
 
 

@@ -4,6 +4,8 @@ from Gaussian import *
 
 
 
+
+
 def BinsNonuniform( array, nbins, root=None, nsigma=None ) : 
 	# nsigma
 	array = npfmt(array)
@@ -24,6 +26,8 @@ def BinsNonuniform( array, nbins, root=None, nsigma=None ) :
 	b = np.append([0], np.cumsum(b))
 	bins = amin + (amax-amin) * b
 	return bins
+
+
 
 
 

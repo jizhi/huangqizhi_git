@@ -13,39 +13,30 @@ class NoiseSource( object ) :
 	def __init__( self, pixstart=None, pixlength=None, pixperiod=None ) : 
 		''' NOTE THAT here set the pixel/index, not second ! 
 		Generately, we set pixstart of the first hdf5(hdf5list[0]). However, because inttime is not an integer, after long time, we may stager on pixel, in this case, we set pixstart of current (or one before current) Antarray (see self.Mask() below), then we may have a better result
+
+		0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+				. . . .                      .  .  .  .  
+		. . .         . . . .  .  .  .  .              .  .
+
+		pixstart=3,  pixlength=4 (3~6),  pixperiod=12 (15-3=12)
 		'''
 		self.pixstart, self.pixlength, self.pixperiod = int(round(pixstart)), int(round(pixlength)), int(round(pixperiod))
 
 
 	def Mask( self, antarray ) : 
 		''' antarray: class:AntArray '''
-		Nt = antarray.vis.shape[0]
-		nhdf5 = antarray.Hdf5.nhdf5
-	#	Nhdf5 = len(antarray.Hdf5.hdf5list)
-		Nhdf5 = nhdf5 + 2
-		#------------------------------
-		# Check pixstart
-		if (self.pixstart >= (nhdf5+1)*Nt) : self.pixstart -= Nt
-		#------------------------------
-		nstart = np.arange(self.pixstart, Nhdf5*Nt, self.pixperiod)
-		nend   = np.arange(self.pixstart+self.pixlength, Nhdf5*Nt+1, self.pixperiod)
-		if (nend[-1]<nstart[-1]): nend = np.append(nend, [Nhdf5*Nt])
-		nstart = nstart[(nhdf5*Nt<=nstart)*(nstart<(nhdf5+1)*Nt)]
-		nend   = nend[(nhdf5*Nt<=nend)*(nend<=(nhdf5+1)*Nt)]
-		if (nstart[0]>nend[0]) : nstart = np.append(nstart, [nstart[0]-self.pixlength])
-		if (nstart[-1]>nend[-1]) : nend = np.append(nend, [nend[-1]+self.pixlength])
-		if (nstart[0]<nhdf5*Nt) : nstart[0] = nhdf5*Nt
-		if (nend[-1]>(nhdf5+1)*Nt) : nend[0] = nhdf5*Nt
-		nstart, nend = nstart-nhdf5*Nt, nend-nhdf5*Nt
-		#------------------------------
-		self.nmask = np.append(nstart[:,None], nend[:,None], 1)
-		# Each nmask[i], vis[nmask[i,0]:nmask[i,1]] is the range of noise source
-		self.mask = np.zeros([Nt,], bool)
+		N0 = antarray.Ant.N0
+		nhdf5 = antarray.Hdf5.nhdf5[0]
+		Ntot = N0*nhdf5+antarray.vis.shape[0]
+		n1 = np.arange(self.pixstart, Ntot, self.pixperiod)
+		n1 = n1[n1>=N0*nhdf5]
+		n2 = n1 + self.pixlength
+		n2 = n2[n2<=Ntot]
+		if (n2.size < n1.size) : n2 = np.append(n2, [Ntot])
+		self.nmask = np.concatenate([n1[:,None], n2[:,None]], 1)-N0*nhdf5
+		self.mask = np.zeros(antarray.vis.shape[0], bool)
 		for i in xrange(len(self.nmask)) : 
 			self.mask[self.nmask[i,0]:self.nmask[i,1]] = True
-		# self.mask.shape = (vis.shape[0],)
-		# len(self.nmask) = Total number of Noise source
-		# These are for current antarray
 		return self.nmask, self.mask
 
 
@@ -61,55 +52,94 @@ class Masking( object ) :
 
 	def __init__( self, antarray=None, Nprocess=None, verbose=True, outdir=None ) : 
 		''' All input parameters will be saved to self.Params '''
+		self.starttime = jp.Time(1)
 		class _Params( object ) : pass
 		self.Params = _Params()
 		self.Params.init = {'Nprocess':Nprocess, 'verbose':verbose}
 		#--------------------------------------------------
 		self.Nprocess, self.verbose = Nprocess, verbose
+		if (self.verbose) : print '\n'
 		if (antarray is None) : return
 		self.antarray = antarray  #@ will it increast the memory?
 		# Always have self.mask.shape == vis.shape
-		shape = list(self.antarray.vis.shape)
-		shape[2] = len(self.antarray.visorder)
-		self.mask = np.zeros(shape, bool)
+		self.mask = np.zeros(antarray.vis.shape, bool)
 		#----------
-		vistype = self.antarray.vistype[:-1]
-		value = np.array(1, self.antarray.vis.dtype)
-		if (vistype == 'auto') : dtype = value.real.dtype
-		else : dtype = value.dtype
-		self.maskvalue = np.array([], dtype)
+		self.maskvalue = np.array([], antarray.vis.dtype)
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
 		if (outdir is not None) : self.outdir = jp.Mkdir(self.outdir+outdir)
-		self.starttime = jp.Time(1)
 
 
 
-	def MaskNoiseSource( self, pixstart, pixlength, pixperiod ) :
+	def MaskNoiseSource( self, pixstart=None, pixlength=None, pixperiod=None, maskvalue=True ) :
 		'''
+		0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+				. . . .                      .  .  .  .  
+		. . .         . . . .  .  .  .  .              .  .
+
+		pixstart=3,  pixlength=4 (3~6),  pixperiod=12 (15-3=12)
+
 		self.noisesource.pixstart
 		self.noisesource.pixlength
 		self.noisesource.pixperiod
 		self.noisesource.nmask
 		self.noisesource.mask
 		self.masknoisesource
+
+		(1) If can do pixstart+pixlength+pixperiod, then use them.
+		(2) Else, calculate them automatically. In this case, you can set pixstart from 0 to 1 to make the result more correct.
 		'''
 		if (self.verbose) : 
 			starttime = jp.Time(1)
 			print 'Masking.MaskNoisesource: start @', starttime
+		try : pixstart+pixlength+pixperiod
+		except : 
+			if (pixstart is None) : times = 0.5
+			else : times = pixstart
+			vis = abs(self.antarray.vis[:,self.antarray.vis.shape[1]/2,0].copy())
+			vis = np.arange(vis.size)[vis>=vis.max()*times]
+			ngroup, nrange = jp.ArrayGroup(vis)
+			n = nrange[:,1] - nrange[:,0]
+			count = []
+			while (n.size > 0) : 
+				count.append( [n[n==n[0]].size, n[0]] )
+				n = n[n!=n[0]]
+			count = jp.Sort(np.array(count), '[:,0]', True)[0,1]
+			n = nrange[:,1] - nrange[:,0]
+			nrange = nrange[n==count]
+			pixlength = nrange[0,1] - nrange[0,0]  # sure
+			n = nrange[1:,0] - nrange[:-1,0]
+			pixperiod = []
+			while (n.size > 0) : 
+				pixperiod.append( [n[n==n[0]].size, n[0]] )
+				n = n[n!=n[0]]
+			pixperiod = jp.Sort(np.array(pixperiod), '[:,0]', True)[0,1]
+			n = nrange[1:,0] - nrange[:-1,0]
+			n = np.where(n==pixperiod)[0][0]
+			pixstart = nrange[n,0] + self.antarray.Hdf5.nhdf5[0]*self.antarray.Ant.N0
+			pixstart = pixstart - pixstart/pixperiod * pixperiod
+		#--------------------------------------------------
+
 		self.noisesource = NoiseSource(pixstart, pixlength, pixperiod)
 		self.noisesource.Mask(self.antarray)
 		self.masknoisesource = self.noisesource.mask[:,None,None] + np.zeros(self.mask.shape, bool)  # 3D
+		self.mask += self.masknoisesource
+		#--------------------------------------------------
+
+		maskother = self.mask - self.masknoisesource
+		if (not maskvalue) : 
+			if (self.verbose) : 
+				endtime = jp.Time(1)
+				costtime = jp.Time(starttime, endtime)
+				tottime = jp.Time(self.starttime, endtime)
+				print 'Masking.MaskNoisesource:  end  @', endtime
+				print 'Cost:', costtime+'     Total:', tottime+'\n'
+			return
 		#--------------------------------------------------
 		# Read vis
-		vistype = self.antarray.vistype[:-1]
-		vis = self.antarray.vis[:,:,self.antarray.visorder]
-		if (vistype == 'auto') : vis = vis.real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]
+		vis = self.antarray.vis.copy()
 		shape = vis.shape
 		#--------------------------------------------------
 		maskidx = np.arange(vis.size).reshape(vis.shape)[self.mask]  # ==> self.maskvalue
-		self.mask += self.masknoisesource
-		maskother = self.mask - self.masknoisesource
 		#--------------------------------------------------
 		# other
 		maskotheridx = np.arange(vis.size).reshape(vis.shape)[maskother]
@@ -172,10 +202,23 @@ class Masking( object ) :
 		if (self.verbose) : 
 			starttime = jp.Time(1)
 			print 'Masking.MaskLoop: start @', starttime
+		#--------------------------------------------------
+		arraytf = False
+		if (array is not None) : 
+			arraytf = True
+			istype = jp.IsType()
+			if (not istype.ismaskedarray(array)) : 
+				array = jp.npfmt(array)
+				array = np.ma.MaskedArray(array, np.zeros(array.shape, bool))
+			if (arraymaskvalue is None) : arraymaskvalue = array.data[array.mask].copy()
+		#--------------------------------------------------
 		try : axis = int(round(axis))
 		except : axis = 0
 		per, times = np.array([per, times]).round().astype(int)
-		if (per<=1 or times<=0) : return
+		if (per<=1 or times<=0) : 
+			if (arraytf) : return [array, arraymaskvalue]
+			else : return
+		#--------------------------------------------------
 		if (nloop) : 
 			try : nloop = int(round(nloop))
 			except : nloop = 1
@@ -189,35 +232,26 @@ class Masking( object ) :
 		elif (not nloop and not threshold) : nloop, threshold, strnloop, strthreshold = 10, 0.001, 'None', 'None'
 		else : nloop, threshold
 		#--------------------------------------------------
-		if (array is None) : 
+		if (not arraytf) : 
 			self.Params.MaskLoop = {'axis':axis, 'per':per, 'times':times, 'nsigma':nsigma, 'nloop':nloop, 'threshold':threshold}
 		#--------------------------------------------------
 		if (self.verbose) : print ('    axis=%i, per=%i, times=%i, nsigma=%.1f, nloop=%i, threshold=%.3f' % (axis, per, times, nsigma, nloop, threshold))
 		vistype = self.antarray.vistype[:-1]
 		if (axis==1 and vistype=='cross') : 
-			if (self.verbose) : print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
+			if (self.verbose) : 
+				print '    axis='+str(axis)+' and vistype='+vistryp+', do nothing !'
+				print 'Masking.MaskLoop:  end  @', jp.Time(1)+'\n'
 			return
 		#--------------------------------------------------
 		#---------- Array to handle ----------
-		if (array is None) : 
-			# Read data
-			vis = self.antarray.vis[:,:,self.antarray.visorder]
-			# 3D, auto-real, cross-complex
-			if (vistype == 'auto') : vis = vis.real
-			if (len(vis.shape) == 2) : vis = vis[:,:,None]
+		if (not arraytf) : 
+			vis = self.antarray.vis.copy()
 			# Convenient to Smooth(), using non-masked array is much faster than masked array
 			# ntimefringe=0-16600, nfreq1400=307 for PAON4
 			vis[self.mask] = self.maskvalue  #@ Reset
 			vis = np.ma.MaskedArray(vis, self.mask)
 			maskvalue = [self.maskvalue]
-		else : 
-			istype = jp.IsType()
-			if (istype.ismaskedarray(array)) : vis = array
-			else : 
-				array = jp.npfmt(array)
-				vis = array = np.ma.MaskedArray(array, np.zeros(array.shape, bool))
-			if (arraymaskvalue is not None) : maskvalue = [arraymaskvalue]
-			else : maskvalue = [vis.data[vis.mask].copy()]
+		else : vis, maskvalue = array, [arraymaskvalue]
 		#--------------------------------------------------
 		shape = vis.shape
 		maskidx =[np.arange(vis.size).reshape(vis.shape)[vis.mask]]
@@ -289,9 +323,7 @@ class Masking( object ) :
 		maskidx.append(np.arange(self.mask.size).reshape(self.mask.shape)[self.maskmanual])
 		#--------------------------------------------------
 		vistype = self.antarray.vistype[:-1]
-		vis = self.antarray.vis[:,:,self.antarray.visorder]
-		if (vistype == 'auto') : vis = vis.real
-		if (len(vis.shape) == 2) : vis = vis[:,:,None]
+		vis = self.antarray.vis.copy()
 		vis[maskback] = self.maskvalue
 		vis = np.ma.MaskedArray(vis, self.maskmanual)
 		vis = jp.ResetMasked(vis, 0, self.Nprocess)
