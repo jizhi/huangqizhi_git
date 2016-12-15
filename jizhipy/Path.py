@@ -3,7 +3,9 @@ from ShellCmd import *
 
 
 
-def Escpath( path, which='rm', abspath=False ) : 
+
+
+def EscPath( path, which='rm', abspath=False ) : 
 	''' 
 	Remove/Add escape characters from/to the path
 
@@ -43,26 +45,22 @@ def Escpath( path, which='rm', abspath=False ) :
 
 
 
-##################################################
-##################################################
-##################################################
 
 
-
-def Finddir( dirpath, exclude=[], name='' ) : 
+def FindDir( dirpath, exclude=[], name='' ) : 
 	''' Shell command: find dirpath -name name, plus+ exclude '''
 	istype = IsType()
 	if (not istype.isstr(name)) : name = ''
-	name = Escpath(name, 'add')
+	name = EscPath(name, 'add')
 	#--------------------------------------------------
-	dirpath = Escpath(dirpath, 'add', True)
+	dirpath = EscPath(dirpath, 'add', True)
 	if (name) : walk = ShellCmd('find '+dirpath+' -name '+name)
 	else : walk = ShellCmd('find '+dirpath)
 	#--------------------------------------------------
 	exctmp = []
 	if (istype.isstr(exclude)) : exclude = [exclude]
 	for i in xrange(len(exclude)) : 
-		exclude[i] = Escpath(exclude[i], 'add')
+		exclude[i] = EscPath(exclude[i], 'add')
 		if ('*' not in exclude[i]) : 
 			dirname=os.path.abspath(os.path.expanduser(exclude[i]))
 			exctmp += ShellCmd('find '+dirname)
@@ -83,5 +81,39 @@ def Finddir( dirpath, exclude=[], name='' ) :
 	#--------------------------------------------------
 	return [dirpath, dirs, files]
 
+
+
+
+
+def AbsPath( path ) : 
+	'''
+	Return the absolute path
+	If is directory, '/' at the end
+	Else if is file, no '/'
+	'''
+	path = os.path.abspath(os.path.expanduser(path))
+	if (os.path.isdir(path)) : path += '/'
+	return path
+
+
+
+
+
+def ExistsPath( path, old=False ) : 
+	'''
+	return : 
+		If exists, return True, otherwise, return False
+
+	old:
+		True: rename the file with '_old'
+		False | None: don't rename
+	'''
+	tf = os.path.exists(path)
+	if (old) : 
+		n = path.rfind('.')
+		if (n < 0) : pathold = path + '_old'
+		else : pathold = path[:n] + '_old' + path[n:]
+		if (tf) : os.system('mv '+path+' '+pathold)
+	return tf
 
 

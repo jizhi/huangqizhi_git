@@ -11,7 +11,7 @@ import os
 import sys
 import time
 import shutil
-from jizhipy.Path import Finddir
+from jizhipy.Path import FindDir
 
 
 notlist = ['*.DS_Store', '.git/']
@@ -44,7 +44,7 @@ def Backup( nostlist ) :
 	if (os.path.exists(tarabs)) : shutil.rmtree(tarabs)
 	os.mkdir(tarabs)
 	print '\nBackup to  '+tar+'\n'
-	pwdabs, dirs, files = Finddir(pwd, notlist)
+	pwdabs, dirs, files = FindDir(pwd, notlist)
 	for i in xrange(len(dirs)) : 
 		try : os.makedirs(tarabs+'/'+dirs[i])
 		except : pass

@@ -5,11 +5,13 @@ If you want to use matplotlib and plt_ :
 If want to use Log : 
 	from jizhipy.Log import *
 '''
-from Other import Pause, Purge, Print, Num
+from Other import Pause, Purge, Num, CatalogDecSign
 from Arcsinhspace import Arcsinhspace
 from ArrayAxis import ArrayAxis
 from ArrayGroup import ArrayGroup
+from BeamModel import GaussianBeam, SincBeam, EllipticGaussianBeam, ThetaPhiMatrix
 from BrightSource import BrightSource
+from ClassHdf5 import ClassHdf5
 from CompactDimension import CompactDimension
 from Convolve import Convolve
 from Constant import Constant
@@ -27,14 +29,16 @@ from Invalid import Invalid
 from Interp1d import Interp1d
 from IsType import IsType
 from Jy2K import Jy2K
+from LM2Index import LM2Index
 from npfmt import npfmt
 from OrderKwargs import OrderKwargs
 from Outdir import Outdir
-from Path import Escpath, Finddir
+from Path import EscPath, FindDir, AbsPath, ExistsPath
 from PoolFor import NprocessCPU, PoolFor
+from Print import Print, PrintFilter, WarningFilter
 from ProbabilityDensity import BinsNonuniform, ProbabilityDensity
 from ProgressBar import ProgressBar
-from Raise import SysFrame, WarningFilter, Raise
+from Raise import SysFrame, Raise
 from RandomSeed import RandomSeed
 from Repetition import Repetition
 from ResetMasked import ResetMasked
@@ -43,7 +47,7 @@ from SciNot import Print, SciNot
 from SelectLeastsq import SelectLeastsq
 from ShellCmd import Cd, Mkdir, ShellCmd
 from SiderealTime import SiderealTime
-from Smooth import GaussianFilter, Smooth
+from Smooth import GaussianFilter, Smooth, Medfilt
 from Sort import Sort
 from SortFilename import SortFilename
 from Sph2Circ import Sph2Circ, Circ2Sph

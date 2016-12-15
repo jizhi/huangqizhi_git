@@ -1,5 +1,8 @@
 import sys
+from Print import WarningFilter
 import warnings
+
+
 
 
 
@@ -42,23 +45,6 @@ def SysFrame( downstack=0, upstack=None ) :
 
 
 
-def WarningFilter( tf=None ) : 
-	if (tf is None) : 
-		tf = False
-		for i in xrange(len(warnings.filters)) : 
-			w = warnings.filters[i]
-			if (w[0]=='ignore' and w[2].__name__=='Warning') : 
-				return True
-		return tf
-	elif (tf) : warnings.filterwarnings('ignore')
-	else : 
-		n = 0
-		while (n < len(warnings.filters)) : 
-			w = warnings.filters[n]
-			if (w[0]=='ignore' and w[2].__name__=='Warning') : 
-				warnings.filters.pop(n)
-			else : n +=1
-
 
 
 def Raise( which=None, message='' ) : 
@@ -69,18 +55,18 @@ def Raise( which=None, message='' ) :
 	'''
 	if (which is None) : which = 'Exception'
 	if (which in [Warning,'Warning','warning','WARNING']) : 
-		if (WarningFilter()) : return
+#		if (WarningFilter(None)) : return
 		which = 'Warning'
 		print '-------------------- Warning --------------------'
 		print SysFrame(1)[0]
 		print which+': '+str(message)
-		print '-------------------------------------------------'
+		print '-------------------------------------------------\n'
 	else : 
 		which = 'Exception'
 		print '------------------- Exception -------------------'
 		print SysFrame(1)[0]
 		print which+': '+str(message)
-		print '-------------------------------------------------'
+		print '-------------------------------------------------\n'
 		exit()
 
 

@@ -4,10 +4,16 @@ from Raise import *
 
 
 
-def Interp1d( xdata, ydata, xnew, kind='linear' ) : 
+def _Interp1d( xdata, ydata, xnew, kind='linear' ) : 
 	'''
 	1D interpolation. Note that all array must be 1D
 	Outside the xdata, will use  Linear interpolation
+
+	xdata:
+		Must real
+
+	ydata:
+		Can be real and complex
 
 	kind:
 		'linear' or 'cubic'
@@ -18,6 +24,7 @@ def Interp1d( xdata, ydata, xnew, kind='linear' ) :
 	xdata = xdata + 1j*ydata
 	xdata = np.sort(xdata)
 	ydata, xdata = xdata.imag, xdata.real  # xdata from min to max
+#	ydata = np.arcsinh(ydata)  # smoother
 	#--------------------------------------------------
 	xnew = xnew + 1j*np.arange(xnew.size)
 	xin = xnew[(xdata.min()<=xnew.real)*(xnew.real<=xdata.max())]
@@ -39,4 +46,19 @@ def Interp1d( xdata, ydata, xnew, kind='linear' ) :
 	ynew[xin.imag.astype(int)] = yin
 	ynew[xl.imag.astype(int)] = yl
 	ynew[xr.imag.astype(int)] = yr
+#	ynew = np.sinh(ynew)
+	return ynew
+
+
+
+
+
+def Interp1d( xdata, ydata, xnew, kind='linear' ) : 
+	xdata, ydata, xnew = npfmt(xdata).flatten(), npfmt(ydata).flatten(), npfmt(xnew).flatten()
+	if (ydata.dtype.name[:7] == 'complex') : 
+		yr = _Interp1d(xdata, ydata.real, xnew, kind)
+		yi = _Interp1d(xdata, ydata.imag, xnew, kind)
+		ynew = yr + 1j*yi
+	else : 
+		ynew = _Interp1d(xdata, ydata, xnew, kind)
 	return ynew

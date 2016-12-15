@@ -81,6 +81,8 @@ class PoolFor( object ) :
 		#--------------------------------------------------
 		if (info) : print 'Open '+str(Nprocess)+' processes. '+cpuinfo
 		self.Nprocess, self.nsplit = Nprocess, npfmt(nsplit)
+		self.Nmax = (self.nsplit[:,1] - self.nsplit[:,0]).max()
+
 
 
 
@@ -96,8 +98,8 @@ class PoolFor( object ) :
 
 		send:
 			None or tuple or 2D-ndarray
-			If is tuple, means each element is one array (note that must be 2D, and split along axis=0/row)
-			If not tuple, means the send is an unity: send = npfmt(send)
+			If is tuple/list, means each element is one array (note that must be 2D, and split along axis=0/row)
+			If not tuple/list, means the send is an unity: send = npfmt(send)
 			If is 2D array, will split along axis-0 (row)
 
 		bcast:
@@ -109,11 +111,11 @@ class PoolFor( object ) :
 		if (self.zero) : return
 		if (self.splitsend) : 
 			istuple = True
-			if (type(send) != tuple) : 
+			if (type(send) != tuple and type(send) != list) : 
 				send, istuple = (npfmt(send),), False
 			iterable, nsl = list(self.nsplit), self.nsplit
 			for i in xrange(len(nsl)) : 
-				iterable[i] = [tuple(iterable[i])]
+				iterable[i] = [ [tuple(iterable[i]), self.Nmax] ]
 				sendtmp = ()
 				for j in xrange(len(send)) : 
 					if (send[j] is None) : sendtmp += (None,)
@@ -126,7 +128,7 @@ class PoolFor( object ) :
 			self.Nprocess = len(send)
 			iterable = []
 			for i in xrange(len(send)) : 
-				iterable.append( [(None,None), send[i], bcast] )
+				iterable.append( [[(None,None), self.Nmax], send[i], bcast] )
 		#--------------------------------------------------
 		pool = multiprocessing.Pool(self.Nprocess)
 		self.data = pool.map_async(func, iterable).get(10**10)

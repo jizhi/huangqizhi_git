@@ -31,6 +31,7 @@ def Sort( array, along='[0,:]', l2s=False ) :
 		if (l2s) : array = array[::-1]
 		return array
 	#--------------------------------------------------
+	if (array.shape[axis] == 1) : return array
 	array = ArrayAxis(array, axis, -1, 'move')
 	shape = array.shape
 	#--------------------------------------------------

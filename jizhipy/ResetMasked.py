@@ -7,7 +7,7 @@ from Same import *
 
 
 def _DoMultiprocess_ResetMasked( iterable ) : 
-	n1, n2 = iterable[0]
+	n1, n2 = iterable[0][0]
 	mask, which = iterable[2]
 	if (which) : nless, less = iterable[1]
 	else : nmore, more = iterable[1]
@@ -29,13 +29,16 @@ def _DoMultiprocess_ResetMasked( iterable ) :
 	return [npfmt(nmasknidx), npfmt(nmasknvalue), lm]
 
 
+
 def _DoMultiprocess_ResetMasked_npix( iterable ) : 
-	n1, n2 = iterable[0]
+	n1, n2 = iterable[0][0]
 	npix, data = iterable[1]
 	value = []
 	for i in range(n2-n1) : 
 		value.append(np.zeros(npix[i])+data[i])
 	return np.concatenate(value)
+
+
 
 
 
@@ -49,11 +52,15 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 
 	axis:
 		Along which axis to guess the values
+
+	return:
+		resetvalue = ResetMasked(...)
+		Usage: maskedarray[maskedarray.mask] = resetvalue
 	'''
-	Nprocess = NprocessCPU(Nprocess)[0]
+	if (maskedarray.mask.sum() == 0) : return np.array([])
+	Nprocess = NprocessCPU(Nprocess, verbose=False)[0]
+	mask0, mask = maskedarray.mask.copy(), maskedarray.mask
 	#--------------------------------------------------
-	mask = maskedarray.mask
-	if (mask.sum() == 0) : return maskedarray.data
 	if (axis == 0) : maskedarray = maskedarray.T
 	else : 
 		maskedarray = ArrayAxis(maskedarray.data, axis, -1, 'move')
@@ -168,6 +175,6 @@ def ResetMasked( maskedarray, axis, Nprocess=None ) :
 	maskedarray = maskedarray.data.reshape(shape)
 	if (axis == 0) : maskedarray = maskedarray.T
 	else : maskedarray = ArrayAxis(maskedarray, -1, axis, 'move')
-	return maskedarray
+	return maskedarray[mask0]
 
 

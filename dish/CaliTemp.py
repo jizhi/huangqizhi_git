@@ -9,182 +9,186 @@ from Masking import *
 class CaliTemp( object ) : 
 
 
-	def __init__( self, caliphasecross=None, caliphaseauto=None, verbose=True, outdir=None ) : 
+
+	def __init__( self, caliphasecross, caliphaseauto=None, outdir='' ) : 
 		'''
-		caliphasecross:
-			caliphasecross.vis: with masking, caligain
+		Must give caliphasecross.
+		If also want to calibrate auto, give caliphaseauto
 		'''
+		self.verbose = caliphasecross.verbose
+		if (self.verbose) : print '-------------------- CaliTemp --------------------\n'
 		self.starttime = jp.Time(1)
-		self.verbose = verbose
-		if (self.verbose) : print '\n'
-		if (caliphasecross is not None) : self.caliphasecross = caliphasecross
+		self.caliphasecross = caliphasecross
 		if (caliphaseauto is not None) : self.caliphaseauto = caliphaseauto
 		self.outdir = jp.Outdir((None,'file'), (0,'file'))
 		if (outdir is not None) : self.outdir = jp.Mkdir(self.outdir+outdir)
+		try : self.outdir = jp.Mkdir(self.outdir + outdir)
+		except : pass
 
 
 
-	def Calibrator( self, fluxdensity=None, sourcename=None ) : 
+
+
+	def CalibratorFlux( self, fluxdensity=None, sourcename=None ):
 		'''
 		Just need fluxdensity or sourcename (one of two)
 		Use fluxdensity first, if not, then use sourcename
 
 		fluxdensity:
-			in Jy, the same shape as AntArray.Ant.freq
+			in Jy, the same shape as Antarray.freqorder
 
 		sourcename:
 			Format of the sourcename, CygA as an example:
 				sourcename = 'CygA' or 'Cygnus_A'
+			Then use jizhipy.BrightSource() to get fluxdensity
 		'''
 		if (fluxdensity is not None) : self.flux = fluxdensity
 		elif (sourcename is not None) : 
+			freq = self.caliphasecross.antarray.Ant.freq[self.caliphasecross.antarray.freqorder]
 			bs = jp.BrightSource()
-			self.flux = bs.FluxDensity(sourcename, self.caliphasecross.antarray[0].Ant.freq)
+			self.flux = bs.FluxDensity(sourcename, freq)
+
+
 
 
 
 	def Temp( self, kDeff=1 ) : 
 		'''
 		kDeff:
-		We use caliphasecross.FitBeam to fit Deff. If think the result not good, use kDeff*Deff to instead
+			We use caliphasecross.FitBeam to fit Deff. If think the result not good, use kDeff*Deff to instead
 
 		return:
-		self.calitempcross:
-			Basing on caliphasecross: whether with caligaint
+			self.calitempcross:
+				Basing on caliphasecross: whether with caligaint
 		'''
 		if (self.verbose) : 
 			starttime = jp.Time(1)
-			print 'CaliTemp.Temp: start @', starttime
+			print 'CaliTemp.Temp:  start @', starttime
 		# Temperature of the source in K
-		Deff = (300/self.caliphasecross.antarray[0].Ant.freq[:,None] /self.caliphasecross.Sigmab /self.caliphasecross.fwhm2sigmafactor).mean(1)
-		n1, n2 = Deff.size/5, Deff.size/5*4
-		x = np.arange(n2-n1)
-		def func(x, p) : return p[0]
-		Deff = jp.Leastsq(func, x, Deff[n1:n2], [0,1])[0]
-		Ts = jp.Jy2K(self.flux, Deff*kDeff)[:,None]
+		freq = self.caliphasecross.antarray.Ant.freq[self.caliphasecross.antarray.freqorder]
+		try : 
+			Deff = (300/freq[:,None] /self.caliphasecross.Sigmab /self.caliphasecross.fwhm2sigmafactor).mean(1)  # Assume all cross have the same Deff
+			n1, n2 = Deff.size/5, Deff.size/5*4
+			x = np.arange(n2-n1)
+			def func(x, p) : return p[0]
+			Deff = jp.Leastsq(func, x, Deff[n1:n2], [0])[0]
+		except: Deff= self.caliphasecross.antarray.Ant.antform*0.9
+		Ts = jp.Jy2K(self.flux, freq, Deff*kDeff)[:,None]
 		#--------------------------------------------------
-		vistype = self.caliphasecross.antarray[0].vistype[:-1]
-		self.calitempcross = Ts /self.caliphasecross.Ampb
-		print 'Ts.shape =', Ts.shape
-		print 'self.caliphasecross.Ampb.shape =', self.caliphasecross.Ampb.shape
-		print 'self.calitempcross.shape', self.calitempcross.shape
-		np.save(self.outdir+'calitempcross', self.calitempcross)
-		print 'self.caliphasecross.caligain[0].norm.shape', self.caliphasecross.caligain[0].norm.shape
+		vistype = self.caliphasecross.antarray.vistype[:-1]
+		self.Tcross = Ts /self.caliphasecross.Ampb
+		np.save(self.outdir+'Tcross.npy', self.Tcross)
 		#--------------------------------------------------
-		self.Tnoisesigmacross = self.caliphasecross.caligain[0].norm *self.calitempcross
-		print 'self.Tnoisesigmacross.shape', self.Tnoisesigmacross.shape
-		print 'self.caliphaseauto.caligain[0].norm.shape', self.caliphaseauto.caligain[0].norm.shape
-		self.calitempauto = self.caliphaseauto.caligain[0].norm * 2**0.5 *self.calitempcross 
-		print 'calitempauto.shape', calitempauto.shape
-		np.save(self.outdir+'calitempauto', self.calitempauto)
+		self.Tnoisesigmacross = self.caliphasecross.caligain.norm *self.Tcross
 		np.save(self.outdir+'Tnoisesigmacross', self.Tnoisesigmacross)
-		print '    calitempcross.npy, calitempauto.npy, Tnoisesigmacross.npy  saved'
+		try : 
+			self.Tauto = self.caliphaseauto.caligain.norm * 2**0.5 *self.Tcross 
+			np.save(self.outdir+'Tauto', self.Tauto)
+			printstr = '    calitempcross.npy, calitempauto.npy, Tnoisesigmacross.npy  saved to '+self.outdir
+		except : printstr = '    calitempcross.npy, Tnoisesigmacross.npy  saved to '+self.outdir
 		#--------------------------------------------------
 		if (self.verbose) : 
+			print printstr
 			endtime = jp.Time(1)
 			costtime = jp.Time(starttime, endtime)
 			tottime = jp.Time(self.starttime, endtime)
-			print 'CaliTemp.Temp:  end  @', endtime
+			print 'CaliTemp.Temp:   end  @', endtime
 			print 'Cost:', costtime+'     Total:', tottime+'\n'
 
 
 
-	def Plot( self, plotfreq=None, plotnv=None, yaxes=None, legendsize=None, legendloc=None ) : 
-		'''
-		plotfreq:
-			in MHz
-			==None: middle frequency
 
-		plotnv:
-			Used to Cross-correlation, NOT Auto
-			caliphasecross.antarray[0].visorder[plotnv]
-			plotnv is the number/index/order of visorder, NOT the number/index/order of AntArray.Blorder.blorder
-			==None: longest East-West baseline
+
+	def Plot( self, nf=None, nv=None, yaxes=None, legendsize=None, legendloc=None, blankline=False ) : 
+		'''
+		nf, nv:
+			Both single int
+			subplot(1,2,1) plots 1 cross
+			subplot(1,2,2) plots 2 autos
+
+		yaxes:
+			[yaxescross, yaxesauto]
+			If not plot auto, then yaxes=yaxescross, or yaxes=[yaxescross]
+			Any element can be None
 
 		legendsize, legendloc:
-			Can be one value: legendsize=10, for both auto and cross
-			OR pair: legendsize=[10,12], 10 for auto, 12 for cross
+			Can be one: then copy to two
+ 			Can be two: [legendsizecross, legendsizeauto], .....
+			Any element can be None
+
+		blankline:
+			==True: print at the end
 		'''
-		if (plotnv is None) : # longest East-West baseline
-			bl = self.caliphasecross.antarray[0].Blorder.baseline[self.caliphasecross.antarray[0].visorder]
-			bl = abs(bl[:,0]) # longest East-West baseline
-			nvc = np.where(bl==bl.max())[0][0]  #@#@
-		else : nvc = plotnv  #@#@
-		nvc = jp.npfmt(nvc)
-		bli = self.caliphasecross.antarray[0].Blorder.baseline[self.caliphasecross.antarray[0].visorder][nvc]
-		blo = self.caliphasecross.antarray[0].Blorder.blorder[self.caliphasecross.antarray[0].visorder][nvc]
+		nf, strfreq, nv, strbloc, strblic, blnamec = self.caliphasecross.antarray.Plotnfnv(nf, nv, False)
+		bloc = np.sort(jp.npfmt(strbloc.split('-'), int))
+		try : 
+			strbloa, strblia, blnamea = [], [], []
+			bloa = self.caliphaseauto.antarray.Blorder.blorder[self.caliphaseauto.antarray.visorder][:,0]
+			na = np.concatenate(np.where(bloa==bloc[0]) + np.where(bloa==bloc[1]))
+			for i in xrange(len(na)) : 
+				nf1, strfreq1, na1, strbloa1, strblia1, blnamea1 = self.caliphase.antarray.Plotnfnv(nf, na[i], False)
+				strbloa.append(strbloa1)
+				strblia.append(strblia1)
+				blnamea.append(blnamea1)
+		except : pass
 		#--------------------------------------------------
-		chan, nva = [], []
-		bla = self.caliphaseauto.antarray[0].Blorder.blorder[self.caliphaseauto.antarray[0].visorder][:,0]
-		for i in xrange(nvc.size) : 
-			chan1, chan2 = blo[i]
-			if (chan1 not in chan) : 
-				chan.append(chan1)
-				nva.append(np.where(bla==chan1)[0][0])
-			if (chan2 not in chan) : 
-				chan.append(chan2)
-				nva2 = np.where(bla==chan2)[0][0]
-		nva = np.array(nva)
+		istype = jp.IsType()
+		if (yaxes is None) : yaxes = [None, None]
+		elif (not istype.islist(yaxes) and not istype.istuple(yaxes)) : yaxes = [yaxes, None]
 		#--------------------------------------------------
-		freq = self.caliphasecross.antarray[0].Ant.freq
-		if (plotfreq is None) : plotfreq = freq.mean()
-		freqstr = str(int(round(plotfreq)))  #@#@
-		nf = abs(freq-plotfreq)
-		nf = np.where(nf==nf.min())[0][0]  #@#@
+		if (legendsize is None) : legendsize = [None, None]
+		elif (not istype.islist(legendsize) and not istype.istuple(legendsize)) : legendsize = [legendsize, legendsize]
 		#--------------------------------------------------
-		viscross = self.caliphasecross.vis[:,nf,nvc] *self.calitempcross[nf,nvc]
-		print viscross.shape
-		print self.caliphaseauto.vis.shape
-		print nf
-		print nva, nva.shape
-		visauto = self.caliphaseauto.vis[:,nf,nva]*self.calitempauto[nf,nva]
-		print visauto.shape
-		timem = self.caliphasecross.timem
-		legendsize, legendloc = jp.npfmt(legendsize), jp.npfmt(legendloc)
-		if (legendsize.size == 1) : 
-			legendsize = np.append(legendsize, legendsize)
-			legendloc = np.append(legendloc, legendloc)
+		if (legendloc is None) : legendloc = [None, None]
+		elif (not istype.islist(legendloc) and not istype.istuple(legendloc)) : legendloc = [legendloc, legendloc]
+		#--------------------------------------------------
+		viscross = self.caliphasecross.antarray.vis[:,nf,nv] * self.Tcross[nf,nv]
+		maskcross = self.caliphasecross.masking.mask[:,nf,nv]
+		viscross = np.ma.MaskedArray(viscross, maskcross)
+		try : 
+			visauto =self.caliphaseauto.antarray.vis[:,nf,na] * self.Tauto[nf,nv]
+			try : 
+				maskauto = self.caliphaseauto.masking.mask[:,nf,na]
+				viscauto = np.ma.MaskedArray(viscauto, maskcross)
+			except : pass
+		except : pass
+		#--------------------------------------------------
 		plt.figure(figsize=(17,6))
-		#--------------------------------------------------
-		# Plot all auto
 		plt.subplot(1,2,1)
-		color = plt_color(visauto.shape[-1])
-		ymin, ymax = visauto.min(), visauto.max()
-		dy = ymax-ymin
-		ymin = ymin-0.1*dy if(ymin>0.1*dy)else 0
-		ymax += 0.1*dy
-		for i in xrange(visauto.shape[-1]) : 
-			plt.plot(timem, visauto[:,i], color=color[i], label=str(chan[i]))
-		plt.legend(loc=legendloc[1], fontsize=legendsize[1])
-		plt.xlim(timem.min(), timem.max())
-		plt.ylim(ymin, ymax)
-		yaxes
-		plt.xlabel(r't [min]', size=16)
-		plt.ylabel(r'T [K]', size=16)
-		plt.title('Auto-correlations', size=16)
+		timem = self.caliphasecross.antarray.timem
+		plt.plot(timem, viscross.real, 'b-', label='data.real')
+		plt.plot(timem, viscross.imag, 'r-', label='data.imag')
+		try : plt.legend(loc=legendloc[0], fontsize=legendsize[0])
+		except : pass
+		plt.xlabel('time [min]', size=16)
+		plt.xlim(timem[0], timem[-1])
+		vmax = abs(viscross).max()
+		plt.ylim(-vmax, vmax)
+		try : yaxes[0]
+		except : pass
+		plt.ylabel(r'$T_b$ [K]', size=16)
+		plt.title('Cross-correlation', size=16)
 		#--------------------------------------------------
-		plt.subplot(1,2,2)
-		color = plt_color(2*viscross.shape[-1])
-		ymax = abs(viscross).max()
-		for i in xrange(viscross.shape[-1]) : 
-			strbli = '(%.3f,%.3f)' % tuple(bli[:2,i])
-			strblo = '%i-%i' % tuple(blo[:,i])
-			plt.plot(timem, viscross[:,i].real, color=color[i], label=strblo+', real')
-			plt.plot(timem, viscross[:,i].imag, color=color[-i-1], label=strblo+', imag')
-		plt.legend(loc=legendloc[1], fontsize=legendsize[1])
-		plt.xlim(timem.min(), timem.max())
-		plt.ylim(-1.05*ymax, 1.05*ymin)
-		yaxes
-		plt.xlabel(r't [min]', size=16)
-		plt.ylabel(r'T [K]', size=16)
-		if (nvc.size == 1) : 
-			plt.title('Cross-correlation of baseline='+strblo+'='+strbli, size=16)
-		else : plt.title('Cross-correlations', size=16)
-		plt.suptitle(r'Calibrating the amplitude to Kelvin @ '+str(self.freq)+'MHz', size=20)
-		if (nvc.size == 1) : 
-			plt.savefig(self.outdir+'vis_'+strblo+'_'+str(self.freq)+'MHz.png')
-		else : plt.savefig(self.outdir+'vis_'+str(self.freq)+'MHz.png')
+		try : 
+			plt.subplot(1,2,2)
+			timem = self.caliphaseauto.antarray.timem
+			color = ['b-', 'r-']
+			for i in xrange(len(na)) : 
+				plt.plot(timem, visauto[:,i], color[i], label='chan '+strbloa[i])
+			try: plt.legend(loc=legendloc[1],fontsize=legendsize[1])
+			except : pass
+			plt.xlabel('time [min]', size=16)
+			plt.xlim(timem[0], timem[-1])
+			try : yaxes[1]
+			except : pass
+			plt.ylabel(r'$T_b$ [K]', size=16)
+			plt.title('Auto-correlation', size=16)
+		except : pass
+		plt.suptitle('CaliTemp, '+strfreq+', '+blnamec+strbloc+strblic, size=16)
+		plt.savefig(self.outdir+'CaliTemp_'+strfreq+'_'+strbloc+'.png')
 		plt.close()
+		if (self.verbose) : print '    Plotting CaliTemp_'+strfreq+'_'+strbloc+'.png'
+		if (blankline) : print
 
 
 

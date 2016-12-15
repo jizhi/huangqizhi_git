@@ -11,6 +11,11 @@ def Repetition( array, err=0 ) :
 
 	err:
 		Set the error/difference between two elements that will be considered as the same
+
+	return:
+		2D array 
+			 col-0     col-1
+			[value, total_count]
 	'''
 	a, err = np.sort(array), abs(err)
 	n = abs(a[1:] - a[:-1])

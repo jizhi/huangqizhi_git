@@ -1,7 +1,5 @@
 import sys
 
-
-
 '''
 Import this module if you want to write a log file with argument "--log":
 	python test.py --log
@@ -10,11 +8,12 @@ Import this module if you want to write a log file with argument "--log":
 
 if ('--log' in sys.argv[1:]) : 
 	sysstd = SysStdout()
-	sys.stdout = sys.stderr = sysstd
+	sys.stdout = sysstd
+	sys.stderr = sysstd
 
 
 
-class SysStdout( object ) : 
+class LogStdout( object ) : 
 
 	def __init__( self ) : 
 		pyname = sys.argv[0].split('/')[-1]
@@ -23,10 +22,10 @@ class SysStdout( object ) :
 
 	def write( self, outstream ) : 
 		sys.__stdout__.write(outstream)
-		if (outstream[-1]=='\r') : outstream =outstream[:-1]+'\n'
+		if (outstream[-1]=='\r') : outstream = outstream[:-1]+'\n'
 		if (outstream[0 ]=='\r') : 
 			if (outstream[-1]=='\n') : outstream =outstream[1:]
-			else : outstream =outstream[1:]+'\n'
+			else : outstream = outstream[1:]+'\n'
 		self.logf.write(outstream)
 		self.logf.flush()
 

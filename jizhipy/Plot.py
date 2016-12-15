@@ -1,8 +1,9 @@
 from matplotlib import rcParams
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter 
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from scipy.interpolate import interp1d
 from npfmt import *
+from Raise import *
 
 
 
@@ -338,4 +339,35 @@ def plt_color( N, r2b=False, k=1 ) :
 ##################################################
 
 
+
+def plt_twin( axis, tick0=None, tick=None ) : 
+	'''
+	Add x-top or y-right axis
+
+	axis:
+		['x' | 'y']
+
+	tick0:
+		Must between [0, 1]
+	'''
+	if (str(axis).lower() not in ['x', 'y']) : Raise(Warning, "axis='"+str(axis)+"' not in ['x', 'y']. Do nothing !")
+	axis = str(axis).lower()
+	#--------------------------------------------------
+	if (tick0 is not None and tick is not None) : 
+		tick0 = npfmt(tick0, float)
+		if (tick0.min()<0 or tick0.max()>1) : 
+			Raise(Warning, 'tick0.(min,max)=(%.1f, %.1f) out of [0, 1]. Do nothing !' % (tick0.min(), tick0.max()))
+		else : 
+			if   (axis == 'x') : 
+				plt.twiny()
+				plt.xticks(tick0, tick)
+			elif (axis == 'y') : 
+				plt.twinx()
+				plt.yticks(tick0, tick)
+	#--------------------------------------------------
+	elif (tick0 is None and tick is None) : 
+		if   (axis == 'x') : plt.tick_params(axis='x', which='both', labeltop='on', labelbottom='on')
+		elif (axis == 'y') : plt.tick_params(axis='y', which='both', labelleft='on', labelright='on')
+	#--------------------------------------------------
+	else : Raise(Warning, 'tick0, tick must both ==None or !=None, now one is None but the other is not. Do nothing !')
 

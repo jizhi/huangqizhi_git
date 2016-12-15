@@ -12,24 +12,24 @@ from BeamModel import *
 
 
 
-def _DoMultiprocess_Celestial( iterable ) : 
-	RAl, Decb = iterable[1]
-	coordin, coordout, epochin, epochout = iterable[2]
-	if   (coordin  == 'galactic')   : funcin  = ephem.Galactic
-	elif (coordin  == 'equatorial') : funcin  = ephem.Equatorial
-	if   (coordout == 'galactic')   : funcout = ephem.Galactic
-	elif (coordout == 'equatorial') : funcout = ephem.Equatorial
+
+def _DoMultiprocess_GalacticEquatorial( iterable ) : 
+	lon, lat = iterable[1]
+	coordin, epoch = iterable[2]
+	if (coordin == 'galactic') : 
+		func1, func2 = ephem.Galactic, ephem.Equatorial
+	else : 
+		func1, func2 = ephem.Equatorial, ephem.Galactic
 	x, y = [], []
-	for i in xrange(len(RAl)) : 
-		xy = funcin(RAl[i], Decb[i], epoch=epochin)
-		xy = funcout(xy, epoch=epochout)
-		if   (coordout == 'galactic') : 
-			x.append(xy.lon +0)
-			y.append(xy.lat +0)
-		elif (coordout == 'equatorial') : 
-			x.append(xy.ra  +0)
-			y.append(xy.dec +0)
-	return np.array([x, y])
+	for i in xrange(len(lon)) : 
+		xy = func1(lon[i], lat[i], epoch=epoch)
+		xy = func2(xy, epoch=epoch)
+		try : x.append(xy.ra+0)
+		except : x.append(xy.lon+0)
+		try : y.append(xy.dec+0)
+		except : y.append(xy.lat+0)
+	x, y = npfmt(x), npfmt(y)
+	return np.concatenate([x[:,None], y[:,None]], 1)
 
 
 
@@ -42,182 +42,82 @@ class CoordTrans( object ) :
 		self.Nprocess = Nprocess
 
 
-	######## (coordin, epochin) => (coordout, epochout) ########
 
-
-	def _CoordInOut( self, coordin, coordout ) : 
-		raisestr = "coordin="+str(coordin)+", coordout="+str(coordout)+" not in ['galactic', 'equatorial']"
-		coordin, coordout = str(coordin).lower(), str(coordout).lower()
-		if   ('gal' == coordin[:3]) : coordin = 'galactic'
-		elif ('equ' == coordin[:3]) : coordin = 'equatorial'
-		else : Raise(Exception, raisestr)
-		if   ('gal' == coordout[:3]) : coordout = 'galactic'
-		elif ('equ' == coordout[:3]) : coordout = 'equatorial'
-		else : Raise(Exception, raisestr)
-		return [coordin, coordout]
-
-
-
-	def _EpochInOut( self, epochin, epochout ) : 
+	def Gala2Equa( self, l, b, epoch='2000' ) : 
 		'''
-		epoch:
-			(1) '2000' or ephem.J2000
-			(2) '1950' or ephem.B1950
-			(3) '1900' or ephem.B1900
-			(4) other number
+		l, b: 
+			in degree
+			l, b can be one or N-D array (any shape)
+			l and b can broadcast !
 		'''
-		def _Epoch( epoch ) : 
-			istype = IsType()
-			if (istype.isstr(epoch) or istype.isnum(epoch)) : 
-				epoch = str(epoch)
-				if   ('2000' in epoch) : epoch = ephem.J2000
-				elif ('1950' in epoch) : epoch = ephem.B1950
-				elif ('1900' in epoch) : epoch = ephem.B1900
-				else : epoch = str(epoch)
-			return epoch
-		return [_Epoch(epochin), _Epoch(epochout)]
+		l, b, islist = self._CheckList(l, b)
+		return self._GalacticEquatorial(l, b, 'galactic', epoch, islist)
 
 
 
-	def _RAlDecb( self, RAl, Decb ) : 
-		istype = IsType()
-		if (istype.isnum(RAl) and istype.isnum(Decb)) : 
-			islist = False
-		else : islist = True
-		RAl, Decb = npfmt(RAl), npfmt(Decb)
-		try : 
-			RAl  = RAl + Decb*0
-			Decb = RAl*0 + Decb
-		except : Raise(Exception, 'RAl.shape='+str(RAl.shape)+', Decb.shape='+str(Decb.shape)+', can NOT broadcast')
-		return [RAl, Decb, islist]
-
-
-
-
-	def Celestial( self, RAl, Decb, coordin, coordout, epochin='2000', epochout='2000' ) : 
+	def Equa2Gala( self, RA, Dec, epoch='2000' ) : 
 		'''
-		RAl, Decb:
-			in rad, NOT degree
-			Can be any shape
-			But must can broadcast
-
-		return:
-			[RAl, Decb]
-				in rad
-				with same shape as (RAl+Decb).shape
+		RA, Dec:
+			in degree
+			RA, Dec can be one or N-D array (any shape)
+			RA and Dec can broadcast !
 		'''
-		coordin, coordout = self._CoordInOut(coordin, coordout)
-		epochin, epochout = self._EpochInOut(epochin, epochout)
-		if (coordin==coordout and epochin==epochout) : 
-			return [RAl, Decb]
-		RAl, Decb, islist = self._RAlDecb(RAl, Decb)
-		shape = RAl.shape
-		sent = [RAl.flatten(), Decb.flatten()]
-		bcast = [coordin, coordout, epochin, epochout]
-		if (self.Nprocess <= 1) : 
-			x, y = _DoMultiprocess_Celestial([None, sent, bcast])
-		else : 
-			pool = PoolFor(0, len(RAl), self.Nprocess)
-			xy=pool.map_async(_DoMultiprocess_Celestial, sent,bcast)
-			x, y = np.concatenate(xy, 1)
-		x, y = x.reshape(shape), y.reshape(shape)
-		if (not islist) : x, y = x[0], y[0]
-		return np.array([x, y])
-
-
-	#### Healpix, (coordin, epochin) => (coordout, epochout) ####
-
-
-	def _Nside( self, nside ) : 
-		n = np.log(nside) / np.log(2)
-		if (n != int(n)) : Raise(Exception, 'nside='+str(nside)+' != 2**n')
-		return int(round(nside))
+		RA, Dec, islist = self._CheckList(RA, Dec)
+		return self._GalacticEquatorial(RA, Dec, 'equatorial', epoch, islist)
 
 
 
-	def _Ordering( self, ordering ) : 
-		ordering = str(ordering).upper()
-		if ('NEST' in ordering) : ordering, nest = 'NESTED', True
-		else : ordering, nest = 'RING', False
-		return [ordering, nest]
-
-
-
-
-	def CelestialHealpix( self, healpixmap, ordering, coordin, coordout, epochin='2000', epochout='2000' ) : 
+	def Gala2EquaHeal( self, healpixmap, ordering='RING', epoch='2000' ):
 		'''
 		healpixmap:
-			(1) np.ndarray with shape=(12*nside**2,)
-			(2) int number =nside
+			Healpix map with nside=2**n, total pixels=12*nside**2
 
-		ordering:
-			'RINGE' | 'NESTED'
-
-		return:
-			Case (1) [hpix_in2out, healpixmap_in2out]
-			Case (2) hpix_in2out
-
-				Usage: healpixmap_in2out = healpixmap[hpix_in2out]
+		ordering: 
+			'RING' or 'NESTED'
 		'''
-		try : nside = hp.get_nside(healpixmap)
-		except : nside = self._Nside(healpixmap)
-		ordering, nest = self._Ordering(ordering)
-		hpix_in2out = np.arange(12*nside**2)
-		Decb, RAl = hp.pix2ang(nside, hpix_in2out, nest=nest)
-		Decb = np.pi/2 - Decb
-		RAl, Decb = self.Celestial(RAl, Decb, coordout, coordin, epochout, epochin)
-		hpix_in2out =hp.ang2pix(nside, np.pi/2-Decb,RAl, nest=nest) 
-		try : return [hpix_in2out, healpixmap[hpix_in2out]]
-		except : return hpix_in2out
-
-
-	################# xyz, theta, Rotation #################
-
-
-	def _Angle( self, kwargs, orderkwargs ) : 
-		''' degree to rad '''
-		N = len(orderkwargs)
-		islist, istype = [], IsType()
-		raisestr = 'Shape miss-matching, '
-		for i in xrange(N) : 
-			ok = orderkwargs[i]
-			islist.append( 1-istype.isnum(kwargs[ok]) )
-			kwargs[ok] = npfmt(kwargs[ok]) *np.pi/180
-			raisestr += ok+'.shape='+str(kwargs[ok].shape)+', '
-		try : 
-			for i in xrange(N) : 
-				oki = orderkwargs[i]
-				for j in xrange(N) : 
-					okj = orderkwargs[j]
-					if (i == j) : continue
-					kwargs[oki] = kwargs[oki] + kwargs[okj]*0  # broadcast
-		except : jp.Raise(Exception, raisestr)
-		if (np.array(islist).sum() == 0) : islist = False
-		else : islist = True
-		return [kwargs, islist]
+		nside = hp.get_nside(healpixmap)
+		RA, Dec, nest = self._Nside2LonLat(nside, ordering)
+		l, b = self.Equa2Gala(RA, Dec, epoch)
+		n = hp.ang2pix(nside, (90-b)*np.pi/180, l*np.pi/180, nest=nest)
+		return healpixmap[n]
 
 
 
-	def _RotationMatrix( self, key, ang, islist ) : 
-		one  = np.ones(ang.shape)
-		zero = np.zeros(ang.shape)
-		if (key == 'ax') : 
-			R = np.array([[ one,     zero    ,    zero    ],
-			              [zero,  np.cos(ang), np.sin(ang)],
-			              [zero, -np.sin(ang), np.cos(ang)]])
-		elif (key == 'ay') : 
-			R = np.array([[np.cos(ang), zero, -np.sin(ang)],
-			              [   zero   ,   one,     zero    ],
-			              [np.sin(ang), zero,  np.cos(ang)]])
-		elif (key == 'az') : 
-			R = np.array([[ np.cos(ang), np.sin(ang), zero],
-			              [-np.sin(ang), np.cos(ang), zero],
-			              [    zero    ,    zero    ,  one]])
-		else : Raise(Exception, "key in **kwargs not in ['ax', 'ay', 'az']")
-		R = ArrayAxis(R, 0, -1, 'move')
-		R = ArrayAxis(R, 0, -1, 'move')
-		if (not islist) : R = R[0]
-		return R
+	def Equa2GalaHeal( self, healpixmap, ordering='RING', epoch='2000' ):
+		'''
+		healpixmap:
+			Healpix map with nside=2**n, total pixels=12*nside**2
+
+		ordering: 
+			'RING' or 'NESTED'
+		'''
+		nside = hp.get_nside(healpixmap)
+		l, b, nest = self._Nside2LonLat(nside, ordering)
+		RA, Dec = self.Gala2Equa(l, b, epoch)
+		n =hp.ang2pix(nside, (90-Dec)*np.pi/180, RA*np.pi/180, nest=nest)
+		return healpixmap[n]
+
+
+
+	def Celestial( self, RAl, Decb, coordin, coordout, epoch='2000' ) : 
+		'''
+		RAl, Decb:
+			in degree
+			Can be one or N-D array
+		'''
+		coordin, coordout = self._CoordInOut(coordin, coordout)
+		if (coordin == coordout) : return np.array([RAl, Decb])
+		elif (coordin == 'galactic') : return self.Gala2Equa(RAl, Decb, epoch)
+		elif (coordin == 'equatorial') : return self.Equa2Gala(RAl, Decb, epoch)
+
+		
+
+	def CelestialHeal( self, healpixmap, coordin, coordout, ordering='RING', epoch='2000' ) : 
+		coordin, coordout = self._CoordInOut(coordin, coordout)
+		if (coordin == coordout) : return healpixmap
+		elif (coordin == 'galactic') : return self.Gala2EquaHeal(healpixmap, ordering, epoch)
+		elif (coordin == 'equatorial') : return self.Equa2GalaHeal(healpixmap, ordering, epoch)
+
 
 
 
@@ -243,7 +143,7 @@ class CoordTrans( object ) :
 		order: give the order manually, ['az', 'ax', 'ay']
 
 		ax, ay, az:
-			in degree, NOT rad
+			in degree
 			Can be one or N-D array
 
 		return:
@@ -321,6 +221,94 @@ class CoordTrans( object ) :
 		if (not islistr) : shaper = []
 		xyz = xyz.reshape(shapex + shaper + [3])
 		return xyz.T
+
+
+
+
+
+
+
+	def _CheckList( self, x, y ) : 
+		istype = IsType()
+		if (istype.isnum(x) and istype.isnum(y)) : islist = False
+		else : islist = True
+		x, y = npfmt(x), npfmt(y)
+		try : 
+			x = x + y*0
+			y = y + x*0
+		except : Raise(Exception, 'x.shape='+str(x.shape)+', y.shape='+str(y.shape)+', can NOT broadcast')
+		return [x, y, islist]
+
+
+
+
+
+	def _GalacticEquatorial( self, lon, lat, coordin, epoch, islist ) : 
+		shape = lon.shape
+		lon, lat = lon.flatten()*np.pi/180, lat.flatten()*np.pi/180
+		pool = PoolFor(0, len(lon), self.Nprocess)
+		retn = pool.map_async(_DoMultiprocess_GalacticEquatorial, (lon,lat), (coordin, str(epoch)))
+		lon, lat = np.concatenate(retn).T
+		lon, lat = lon.reshape(shape), lat.reshape(shape)
+		if (not islist) : lon, lat = lon.take(0), lat.take(0)
+		return np.array([lon*180/np.pi, lat*180/np.pi])  # degree
+
+
+
+	def _Nside2LonLat( self, nside, ordering ) : 
+		''' return in degree '''
+		ordering = str(ordering).lower()
+		if (ordering == 'ring') : nest = False
+		else : nest = True
+		lat, lon = hp.pix2ang(nside, np.arange(12*nside**2), nest=nest)
+		lat = np.pi/2 - lat
+		return [lon*180/np.pi, lat*180/np.pi, nest]
+
+
+
+	def _Angle( self, kwargs, orderkwargs ) : 
+		N = len(orderkwargs)
+		islist, istype = [], IsType()
+		raisestr = 'Shape miss-matching, '
+		for i in xrange(N) : 
+			ok = orderkwargs[i]
+			islist.append( 1-istype.isnum(kwargs[ok]) )
+			kwargs[ok] = npfmt(kwargs[ok]) *np.pi/180
+			raisestr += ok+'.shape='+str(kwargs[ok].shape)+', '
+		try : 
+			for i in xrange(N) : 
+				oki = orderkwargs[i]
+				for j in xrange(N) : 
+					okj = orderkwargs[j]
+					if (i == j) : continue
+					kwargs[oki] = kwargs[oki] + kwargs[okj]*0  # broadcast
+		except : jp.Raise(Exception, raisestr)
+		if (np.array(islist).sum() == 0) : islist = False
+		else : islist = True
+		return [kwargs, islist]
+
+
+
+	def _RotationMatrix( self, key, ang, islist ) : 
+		one  = np.ones(ang.shape)
+		zero = np.zeros(ang.shape)
+		if (key == 'ax') : 
+			R = np.array([[ one,     zero    ,    zero    ],
+			              [zero,  np.cos(ang), np.sin(ang)],
+			              [zero, -np.sin(ang), np.cos(ang)]])
+		elif (key == 'ay') : 
+			R = np.array([[np.cos(ang), zero, -np.sin(ang)],
+			              [   zero   ,   one,     zero    ],
+			              [np.sin(ang), zero,  np.cos(ang)]])
+		elif (key == 'az') : 
+			R = np.array([[ np.cos(ang), np.sin(ang), zero],
+			              [-np.sin(ang), np.cos(ang), zero],
+			              [    zero    ,    zero    ,  one]])
+		else : Raise(Exception, "key in **kwargs not in ['ax', 'ay', 'az']")
+		R = ArrayAxis(R, 0, -1, 'move')
+		R = ArrayAxis(R, 0, -1, 'move')
+		if (not islist) : R = R[0]
+		return R
 
 
 
@@ -420,10 +408,10 @@ class CoordTrans( object ) :
 		return thetaphi
 
 
-	##################################################
 
 
-	def Healpix2Flat( self, lon, lat, thetawidth, Npix, hpmapORnside, ordering='RING' ) : 
+
+	def Heal2Flat( self, lon, lat, thetawidth, Npix, hpmapORnside, ordering='RING' ) : 
 		'''
 		lon, lat:
 			in degree

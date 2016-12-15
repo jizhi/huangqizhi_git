@@ -66,3 +66,13 @@ class IsType( object ) :
 			return True
 		else : return False
 
+	def isfunc( self, a ) : 
+		typestr = str(type(a)).split("'")[-2].split('.')[-1]
+		if (typestr in ['instancemethod', 'function']): return True
+		else : return False
+
+	def isspecialinstance( self, a ) : 
+		notlist = ['matrix', 'MaskedArray']
+		typestr = str(type(a)).split("'")[-2].split('.')[-1]
+		if (typestr in notlist) : return True
+		else : False
